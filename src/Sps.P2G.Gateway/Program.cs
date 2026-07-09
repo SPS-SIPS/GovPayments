@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
@@ -9,6 +10,7 @@ using Sps.P2G.Gateway.Infrastructure.Configuration;
 using Sps.P2G.Gateway.Infrastructure.Database;
 using Sps.P2G.Gateway.Infrastructure.Observability;
 using Sps.P2G.Gateway.Infrastructure.RateLimiting;
+using Sps.P2G.Gateway.Infrastructure.Secrets;
 using Sps.P2G.Gateway.Infrastructure.Security;
 using Sps.P2G.Gateway.Infrastructure.SipsConnect;
 using Sps.P2G.Gateway.Infrastructure.Time;
@@ -23,12 +25,24 @@ using Sps.P2G.Gateway.Modules.Verification;
 
 var builder = WebApplication.CreateBuilder(args);
 
+await OpenBaoConfigurationLoader.AddSecretsAsync(builder.Configuration);
 ProductionConfigurationValidator.Validate(builder.Environment, builder.Configuration);
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
 builder.Services.AddProblemDetails();
-builder.Services.AddDataProtection();
+builder.Services.AddOptions<PersistentDataProtectionOptions>()
+    .Bind(builder.Configuration.GetSection("DataProtection"));
+var dataProtectionOptions = builder.Configuration.GetSection("DataProtection").Get<PersistentDataProtectionOptions>() ?? new PersistentDataProtectionOptions();
+var dataProtectionBuilder = builder.Services.AddDataProtection()
+    .SetApplicationName(string.IsNullOrWhiteSpace(dataProtectionOptions.ApplicationName)
+        ? "sps-p2g-gateway"
+        : dataProtectionOptions.ApplicationName);
+if (!string.IsNullOrWhiteSpace(dataProtectionOptions.PersistKeysToFileSystemPath))
+{
+    dataProtectionBuilder.PersistKeysToFileSystem(new DirectoryInfo(dataProtectionOptions.PersistKeysToFileSystemPath));
+}
+
 builder.Services.AddOptions<P2GOptions>()
     .Bind(builder.Configuration.GetSection("P2G"))
     .ValidateDataAnnotations();

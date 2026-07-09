@@ -1,6 +1,10 @@
 bin/
 obj/
 artifacts/
+security/openbao/audit/
+security/openbao/data/
+security/openbao/keys/
+security/openbao/logs/
 
 **/bin/
 **/obj/

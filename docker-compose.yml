@@ -21,6 +21,40 @@ services:
     volumes:
       - ./infra/keycloak/realm-sps.json:/opt/keycloak/data/import/realm-sps.json:ro
 
+  openbao:
+    image: openbao/openbao:2.0.0
+    container_name: sps-p2g-openbao
+    restart: unless-stopped
+    cap_drop:
+      - ALL
+    cap_add:
+      - IPC_LOCK
+    read_only: true
+    user: "100:1000"
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "8200:8200"
+    environment:
+      BAO_ADDR: "http://127.0.0.1:8200"
+    volumes:
+      - ./security/openbao/config:/bao/config
+      - ./security/openbao/data:/bao/data
+      - ./security/openbao/logs:/bao/logs
+      - ./security/openbao/audit:/bao/audit
+    command: server -config=/bao/config/bao.hcl
+    healthcheck:
+      test: [ "CMD-SHELL", "bao status > /dev/null 2>&1 || [ $$? -eq 2 ]" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   gateway:
     build:
       context: .
@@ -33,6 +67,7 @@ services:
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__P2G: Host=postgres;Database=sps_p2g_gateway;Username=postgres;Password=postgres
       Database__RunMigrationsOnStartup: "true"
+      DataProtection__PersistKeysToFileSystemPath: /var/lib/sps-p2g-gateway/data-protection-keys
       P2G__DescriptorHmacSecret: development-descriptor-secret-change-me
       P2G__InternalApiKey: development-internal-key-change-me
       Callbacks__Enabled: "true"
@@ -44,6 +79,9 @@ services:
       Auth__AllowSipsConnectInternalKeyFallback: "true"
     ports:
       - "8081:8080"
+    volumes:
+      - p2g-data-protection-keys:/var/lib/sps-p2g-gateway/data-protection-keys
 
 volumes:
   p2g-postgres:
+  p2g-data-protection-keys:

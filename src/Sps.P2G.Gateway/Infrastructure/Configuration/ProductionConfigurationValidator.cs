@@ -1,4 +1,5 @@
 using Sps.P2G.Gateway.Infrastructure.Callbacks;
+using Sps.P2G.Gateway.Infrastructure.Secrets;
 using Sps.P2G.Gateway.Infrastructure.Security;
 
 namespace Sps.P2G.Gateway.Infrastructure.Configuration;
@@ -76,9 +77,69 @@ public static class ProductionConfigurationValidator
             errors.Add("Keycloak:Audience is required.");
         }
 
+        if (string.IsNullOrWhiteSpace(keycloak.RevenueAuthorityRole))
+        {
+            errors.Add("Keycloak:RevenueAuthorityRole is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(keycloak.SipsConnectRole))
+        {
+            errors.Add("Keycloak:SipsConnectRole is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(keycloak.DashboardRole))
+        {
+            errors.Add("Keycloak:DashboardRole is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(keycloak.ConfigurationAdminRole))
+        {
+            errors.Add("Keycloak:ConfigurationAdminRole is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(keycloak.SipsConnectClientId))
+        {
+            errors.Add("Keycloak:SipsConnectClientId is required.");
+        }
+
         if (!keycloak.RequireHttpsMetadata)
         {
             errors.Add("Keycloak:RequireHttpsMetadata must be true outside development and test environments.");
+        }
+
+        var openBao = configuration.GetSection("OpenBao").Get<OpenBaoOptions>() ?? new OpenBaoOptions();
+        if (!openBao.Enabled)
+        {
+            errors.Add("OpenBao:Enabled must be true outside development and test environments.");
+        }
+
+        if (openBao.Enabled)
+        {
+            if (string.IsNullOrWhiteSpace(openBao.BaseUrl))
+            {
+                errors.Add("OpenBao:BaseUrl is required when OpenBao is enabled.");
+            }
+
+            if (string.IsNullOrWhiteSpace(openBao.Token))
+            {
+                errors.Add("OpenBao:Token is required when OpenBao is enabled.");
+            }
+
+            if (string.IsNullOrWhiteSpace(openBao.KvMount))
+            {
+                errors.Add("OpenBao:KvMount is required when OpenBao is enabled.");
+            }
+
+            if (string.IsNullOrWhiteSpace(openBao.SecretPath))
+            {
+                errors.Add("OpenBao:SecretPath is required when OpenBao is enabled.");
+            }
+        }
+
+        var dataProtection = configuration.GetSection("DataProtection").Get<PersistentDataProtectionOptions>() ?? new PersistentDataProtectionOptions();
+        if (string.IsNullOrWhiteSpace(dataProtection.PersistKeysToFileSystemPath))
+        {
+            errors.Add("DataProtection:PersistKeysToFileSystemPath is required outside development and test environments.");
         }
 
         if (errors.Count > 0)

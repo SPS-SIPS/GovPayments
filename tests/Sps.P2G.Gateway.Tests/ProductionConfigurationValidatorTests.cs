@@ -32,7 +32,9 @@ public sealed class ProductionConfigurationValidatorTests
                 ["CallbackSecurity:RequireHttps"] = "false",
                 ["CallbackSecurity:AllowPrivateNetworkTargets"] = "true",
                 ["Keycloak:Enabled"] = "false",
-                ["Keycloak:RequireHttpsMetadata"] = "false"
+                ["Keycloak:RequireHttpsMetadata"] = "false",
+                ["OpenBao:Enabled"] = "false",
+                ["DataProtection:PersistKeysToFileSystemPath"] = ""
             })
             .Build();
 
@@ -44,6 +46,8 @@ public sealed class ProductionConfigurationValidatorTests
         Assert.Contains("AllowAuthorityApiKeyFallback must be false", exception.Message);
         Assert.Contains("CallbackSecurity:RequireHttps must be true", exception.Message);
         Assert.Contains("CallbackSecurity:AllowPrivateNetworkTargets must be false", exception.Message);
+        Assert.Contains("OpenBao:Enabled must be true", exception.Message);
+        Assert.Contains("DataProtection:PersistKeysToFileSystemPath is required", exception.Message);
     }
 
     [Fact]
@@ -62,7 +66,18 @@ public sealed class ProductionConfigurationValidatorTests
                 ["Keycloak:Enabled"] = "true",
                 ["Keycloak:Authority"] = "https://keycloak.example/realms/sps",
                 ["Keycloak:Audience"] = "sps-p2g-gateway",
-                ["Keycloak:RequireHttpsMetadata"] = "true"
+                ["Keycloak:RequireHttpsMetadata"] = "true",
+                ["Keycloak:RevenueAuthorityRole"] = "p2g-authority",
+                ["Keycloak:SipsConnectRole"] = "p2g-sips-connect",
+                ["Keycloak:DashboardRole"] = "p2g-dashboard",
+                ["Keycloak:ConfigurationAdminRole"] = "p2g-configuration-admin",
+                ["Keycloak:SipsConnectClientId"] = "sips-connect-p2g",
+                ["OpenBao:Enabled"] = "true",
+                ["OpenBao:BaseUrl"] = "https://openbao.example",
+                ["OpenBao:Token"] = "bao-token",
+                ["OpenBao:KvMount"] = "secret",
+                ["OpenBao:SecretPath"] = "sps-p2g-gateway/runtime",
+                ["DataProtection:PersistKeysToFileSystemPath"] = "/var/lib/sps-p2g-gateway/data-protection-keys"
             })
             .Build();
 

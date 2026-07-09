@@ -9,6 +9,7 @@ ASPNETCORE_ENVIRONMENT ?= Development
 GATEWAY_URL ?= http://localhost:8081
 OPENAPI_PORT ?= 5088
 OPENAPI_OUT_DIR ?= artifacts/openapi
+SECURITY_DIR := security/openbao
 MIGRATION_NAME ?=
 MIGRATION_OUTPUT ?= artifacts/sql/migrations.sql
 DOTNET_EF := dotnet tool run dotnet-ef --
@@ -87,6 +88,30 @@ stack-logs: ## Tail logs for the local stack. Override SERVICE=gateway/postgres/
 .PHONY: docker-build
 docker-build: ## Build the gateway Docker image.
 	docker build -t sps-p2g-gateway:local .
+
+.PHONY: security-prepare
+security-prepare: ## Prepare OpenBao data, audit, log, and key directories.
+	$(SECURITY_DIR)/scripts/bao-prepare-dirs.sh
+
+.PHONY: security-up
+security-up: ## Start the OpenBao security tier.
+	docker compose up -d openbao
+
+.PHONY: security-down
+security-down: ## Stop the OpenBao security tier.
+	docker compose stop openbao
+
+.PHONY: security-init
+security-init: ## Initialize OpenBao and store local unseal/root-token files under security/openbao/keys.
+	$(SECURITY_DIR)/scripts/bao-init.sh
+
+.PHONY: security-unseal
+security-unseal: ## Unseal OpenBao using security/openbao/keys/unseal_key.
+	$(SECURITY_DIR)/scripts/bao-unseal.sh
+
+.PHONY: security-bootstrap
+security-bootstrap: ## Enable P2G OpenBao KV/transit policy and issue a gateway token.
+	$(SECURITY_DIR)/scripts/bao-bootstrap-p2g.sh
 
 .PHONY: db-migrate
 db-migrate: tool-restore ## Apply EF Core migrations to the configured database.

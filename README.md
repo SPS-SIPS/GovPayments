@@ -13,6 +13,9 @@ tests/
   Sps.P2G.Gateway.Tests/
 docs/
   itax-revenue-authority-integration.md
+security/
+  production.env.example
+  openbao/
 ```
 
 The iTax Revenue Authority integration guide is available at `docs/itax-revenue-authority-integration.md`.
@@ -30,6 +33,7 @@ make verify
 make run
 make deps-up
 make stack-up
+make security-up
 make openapi
 ```
 
@@ -99,6 +103,41 @@ make openapi
 
 The generator writes `artifacts/openapi/openapi.json` and `artifacts/openapi/openapi.yaml`.
 
+## OpenBao Secrets
+
+Production deployments load runtime secrets from OpenBao KV v2 before startup validation runs. The OpenBao security bundle lives under `security/openbao` and is adapted from the Helios security-tier configuration with SPS P2G service names.
+
+```bash
+make security-prepare
+make security-up
+make security-init
+make security-unseal
+make security-bootstrap
+```
+
+Store runtime values at `secret/sps-p2g-gateway/runtime` using flat ASP.NET configuration keys:
+
+```bash
+ConnectionStrings__P2G
+P2G__DescriptorHmacSecret
+P2G__InternalApiKey
+Keycloak__Authority
+Keycloak__Audience
+Keycloak__RequireHttpsMetadata
+```
+
+At runtime, the gateway only needs enough environment configuration to reach OpenBao:
+
+```bash
+OpenBao__Enabled=true
+OpenBao__BaseUrl=http://sps-p2g-openbao:8200
+OpenBao__Token={token-from-security-bootstrap}
+OpenBao__KvMount=secret
+OpenBao__SecretPath=sps-p2g-gateway/runtime
+```
+
+See `security/openbao/README.md` and `security/production.env.example` for the complete deployment shape.
+
 ## Auth Headers
 
 Revenue Authority APIs currently accept API-key fallback:
@@ -132,6 +171,8 @@ Outside development, testing, and integration-testing environments the service f
 - `Keycloak:RequireHttpsMetadata=true`
 - `Auth:AllowAuthorityApiKeyFallback=false`
 - `Auth:AllowSipsConnectInternalKeyFallback=false`
+- `OpenBao:Enabled=true`
+- `DataProtection:PersistKeysToFileSystemPath` points to persistent shared storage
 - `CallbackSecurity:RequireHttps=true`
 - `CallbackSecurity:AllowPrivateNetworkTargets=false`
 
@@ -145,6 +186,7 @@ Recommended realm model:
 - Configuration admins: portal users who create MDA/service revenue-account mappings receive `p2g-configuration-admin`.
 - Revenue Authorities: one confidential client per authority, with service accounts enabled. The Keycloak `client_id` should match `RevenueAuthority.Code`, and the client should receive `p2g-authority`.
 - SIPS Connect: one confidential client, default `sips-connect-p2g`, with `p2g-sips-connect`.
+- Service-account and dashboard tokens must include the API audience `sps-p2g-gateway`. The sample realm includes explicit audience mappers for the starter clients.
 
 Enable JWT validation:
 

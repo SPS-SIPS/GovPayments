@@ -1,0 +1,14 @@
+[Unit]
+Description=Renew SPS P2G OpenBao token
+After=openbao-auto-unseal.service docker.service network-online.target
+Wants=openbao-auto-unseal.service docker.service network-online.target
+ConditionPathExists=/home/ubuntu/sps-p2g/security/openbao/scripts/bao-renew-token.sh
+ConditionPathExists=/home/ubuntu/sps-p2g/security/production.env
+
+[Service]
+Type=oneshot
+Environment=TOKEN_ENV_FILE=/home/ubuntu/sps-p2g/security/production.env
+Environment=BAO_ADDR=http://127.0.0.1:8200
+Environment=SERVICE_NAME=sps-p2g-openbao
+Environment=RENEW_INCREMENT=720h
+ExecStart=/usr/bin/flock -n /run/sps-p2g-openbao-token-renew.lock /home/ubuntu/sps-p2g/security/openbao/scripts/bao-renew-token.sh

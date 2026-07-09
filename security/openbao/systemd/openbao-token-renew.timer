@@ -1,0 +1,11 @@
+[Unit]
+Description=Renew SPS P2G OpenBao token periodically
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=12h
+AccuracySec=1min
+Unit=openbao-token-renew.service
+
+[Install]
+WantedBy=timers.target

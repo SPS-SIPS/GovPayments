@@ -1,0 +1,14 @@
+[Unit]
+Description=Auto-unseal SPS P2G OpenBao after container restart
+Documentation=file:/home/ubuntu/sps-p2g/security/openbao/README.md
+After=docker.service network-online.target
+Wants=docker.service network-online.target
+ConditionPathExists=/home/ubuntu/sps-p2g/security/openbao/scripts/bao-unseal.sh
+ConditionPathExists=/home/ubuntu/sps-p2g/security/openbao/keys/unseal_key
+
+[Service]
+Type=oneshot
+Environment=SECURITY_DIR=/home/ubuntu/sps-p2g/security/openbao
+Environment=BAO_ADDR=http://127.0.0.1:8200
+Environment=SERVICE_NAME=sps-p2g-openbao
+ExecStart=/usr/bin/flock -n /run/sps-p2g-openbao-auto-unseal.lock /bin/bash -lc 'for _ in {1..60}; do docker inspect sps-p2g-openbao >/dev/null 2>&1 && break; sleep 2; done; cd "$SECURITY_DIR"; ./scripts/bao-unseal.sh'

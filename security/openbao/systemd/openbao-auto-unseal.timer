@@ -1,0 +1,11 @@
+[Unit]
+Description=Run SPS P2G OpenBao auto-unseal after boot and periodically
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=60s
+AccuracySec=10s
+Unit=openbao-auto-unseal.service
+
+[Install]
+WantedBy=timers.target

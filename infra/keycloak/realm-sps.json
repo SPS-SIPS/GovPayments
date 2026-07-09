@@ -44,6 +44,18 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": true,
       "authorizationServicesEnabled": false,
+      "protocolMappers": [
+        {
+          "name": "sps-p2g-gateway-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "sps-p2g-gateway",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ],
       "defaultClientScopes": [
         "web-origins",
         "acr",
@@ -62,6 +74,18 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": true,
       "authorizationServicesEnabled": false,
+      "protocolMappers": [
+        {
+          "name": "sps-p2g-gateway-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "sps-p2g-gateway",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ],
       "defaultClientScopes": [
         "web-origins",
         "acr",
@@ -84,6 +108,18 @@
       ],
       "webOrigins": [
         "+"
+      ],
+      "protocolMappers": [
+        {
+          "name": "sps-p2g-gateway-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "sps-p2g-gateway",
+            "access.token.claim": "true",
+            "id.token.claim": "true"
+          }
+        }
       ],
       "defaultClientScopes": [
         "web-origins",
