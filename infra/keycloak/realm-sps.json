@@ -1,0 +1,128 @@
+{
+  "realm": "sps",
+  "enabled": true,
+  "roles": {
+    "realm": [
+      {
+        "name": "p2g-authority",
+        "description": "Machine clients allowed to manage bills for their mapped Revenue Authority."
+      },
+      {
+        "name": "p2g-sips-connect",
+        "description": "Machine client allowed to call hosted SIPS Connect P2G endpoints."
+      },
+      {
+        "name": "p2g-dashboard",
+        "description": "Human users allowed to access P2G dashboard APIs and UI."
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "sps-p2g-gateway",
+      "name": "SPS P2G Gateway API",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "bearerOnly": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false
+    },
+    {
+      "clientId": "sips-connect-p2g",
+      "name": "Hosted SIPS Connect for P2G",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "change-me-sips-connect-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": false,
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles"
+      ]
+    },
+    {
+      "clientId": "SRA",
+      "name": "Somali Revenue Authority P2G Client",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "change-me-sra-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": false,
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles"
+      ]
+    },
+    {
+      "clientId": "p2g-dashboard",
+      "name": "P2G Dashboard",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:5173/*",
+        "http://localhost:3000/*"
+      ],
+      "webOrigins": [
+        "+"
+      ],
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles",
+        "email"
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "service-account-sips-connect-p2g",
+      "enabled": true,
+      "serviceAccountClientId": "sips-connect-p2g",
+      "realmRoles": [
+        "p2g-sips-connect"
+      ]
+    },
+    {
+      "username": "service-account-SRA",
+      "enabled": true,
+      "serviceAccountClientId": "SRA",
+      "realmRoles": [
+        "p2g-authority"
+      ]
+    },
+    {
+      "username": "dashboard-admin",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Dashboard",
+      "lastName": "Admin",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin",
+          "temporary": true
+        }
+      ],
+      "realmRoles": [
+        "p2g-dashboard"
+      ]
+    }
+  ]
+}

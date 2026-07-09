@@ -1,0 +1,49 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: sps_p2g_gateway
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - p2g-postgres:/var/lib/postgresql/data
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.2
+    command: start-dev --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./infra/keycloak/realm-sps.json:/opt/keycloak/data/import/realm-sps.json:ro
+
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - postgres
+      - keycloak
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__P2G: Host=postgres;Database=sps_p2g_gateway;Username=postgres;Password=postgres
+      Database__RunMigrationsOnStartup: "true"
+      P2G__DescriptorHmacSecret: development-descriptor-secret-change-me
+      P2G__InternalApiKey: development-internal-key-change-me
+      Callbacks__Enabled: "true"
+      Keycloak__Enabled: "true"
+      Keycloak__Authority: http://keycloak:8080/realms/sps
+      Keycloak__Audience: sps-p2g-gateway
+      Keycloak__RequireHttpsMetadata: "false"
+      Auth__AllowAuthorityApiKeyFallback: "true"
+      Auth__AllowSipsConnectInternalKeyFallback: "true"
+    ports:
+      - "8081:8080"
+
+volumes:
+  p2g-postgres:
