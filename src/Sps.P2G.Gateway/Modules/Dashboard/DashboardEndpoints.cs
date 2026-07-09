@@ -56,6 +56,7 @@ public static class DashboardEndpoints
                 paidBills,
                 expiredBills = await bills.CountAsync(x => x.StatusProjection == BillStatuses.Expired, cancellationToken),
                 cancelledBills = await bills.CountAsync(x => x.StatusProjection == BillStatuses.Cancelled, cancellationToken),
+                voidedBills = await bills.CountAsync(x => x.StatusProjection == BillStatuses.Voided, cancellationToken),
                 reversedBills = await bills.CountAsync(x => x.StatusProjection == BillStatuses.Reversed, cancellationToken),
                 totalAmountCreated = await bills.SumAsync(x => (decimal?)x.Amount, cancellationToken) ?? 0m,
                 totalAmountPaid = await bills.Where(x => x.StatusProjection == BillStatuses.Paid).SumAsync(x => (decimal?)x.Amount, cancellationToken) ?? 0m,

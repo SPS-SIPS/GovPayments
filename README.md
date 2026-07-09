@@ -11,20 +11,38 @@ src/
   Sps.P2G.Gateway/
 tests/
   Sps.P2G.Gateway.Tests/
+docs/
+  itax-revenue-authority-integration.md
 ```
 
+The iTax Revenue Authority integration guide is available at `docs/itax-revenue-authority-integration.md`.
+
 ## Local Configuration
+
+Most local workflows are available through `make`:
+
+```bash
+make help
+make restore
+make build
+make test
+make verify
+make run
+make deps-up
+make stack-up
+make openapi
+```
 
 Start local dependencies:
 
 ```bash
-docker compose up -d postgres keycloak
+make deps-up
 ```
 
 Or run the full local stack, including the gateway:
 
 ```bash
-docker compose up --build
+make stack-up
 ```
 
 The gateway is exposed at:
@@ -46,9 +64,7 @@ export P2G__InternalApiKey='change-me-internal-key'
 Apply the schema:
 
 ```bash
-dotnet ef database update \
-  --project src/Sps.P2G.Gateway/Sps.P2G.Gateway.csproj \
-  --startup-project src/Sps.P2G.Gateway/Sps.P2G.Gateway.csproj
+make db-migrate
 ```
 
 Or let the service apply migrations at startup:
@@ -62,8 +78,26 @@ export Database__MigrationRetryDelaySeconds=3
 Run the service:
 
 ```bash
-dotnet run --project src/Sps.P2G.Gateway/Sps.P2G.Gateway.csproj
+make run
 ```
+
+Useful migration commands:
+
+```bash
+make db-migration-add MIGRATION_NAME=AddNewIndex
+make db-migration-list
+make db-migration-remove
+make db-script
+make db-drop
+```
+
+Generate OpenAPI artifacts:
+
+```bash
+make openapi
+```
+
+The generator writes `artifacts/openapi/openapi.json` and `artifacts/openapi/openapi.yaml`.
 
 ## Auth Headers
 
@@ -108,6 +142,7 @@ The service is scaffolded for Keycloak JWT bearer auth.
 Recommended realm model:
 
 - Dashboard: human users authenticate with the OIDC authorization-code flow and receive `p2g-dashboard`.
+- Configuration admins: portal users who create MDA/service revenue-account mappings receive `p2g-configuration-admin`.
 - Revenue Authorities: one confidential client per authority, with service accounts enabled. The Keycloak `client_id` should match `RevenueAuthority.Code`, and the client should receive `p2g-authority`.
 - SIPS Connect: one confidential client, default `sips-connect-p2g`, with `p2g-sips-connect`.
 
@@ -151,13 +186,14 @@ In strict mode:
 - Authority APIs require a bearer token with `p2g-authority`; token `azp` / `client_id` must match `RevenueAuthority.Code`. Client roles are accepted only from the calling authority client; realm role assignment is also supported.
 - SIPS Connect APIs require the configured `sips-connect-p2g` client and `p2g-sips-connect`.
 - Dashboard APIs require `p2g-dashboard`.
+- MDA/service revenue-account configuration writes require `p2g-configuration-admin`.
 
 The local compose file imports a starter realm from `infra/keycloak/realm-sps.json` with:
 
 - `sips-connect-p2g` confidential client, secret `change-me-sips-connect-secret`
 - `SRA` confidential client, secret `change-me-sra-secret`
 - `p2g-dashboard` public dashboard client
-- `dashboard-admin` temporary password `admin`
+- `dashboard-admin` temporary password `admin`, with dashboard and configuration-admin roles
 
 Example client-credentials token request:
 
@@ -171,15 +207,33 @@ curl -s http://localhost:8080/realms/sps/protocol/openid-connect/token \
 ## Core Flow
 
 1. `POST /api/v1/authorities`
-2. `POST /api/v1/authorities/{authorityId}/accounts`
+2. `POST /api/v1/dashboard/authorities/{authorityId}/revenue-accounts`
 3. `POST /api/v1/authorities/{authorityId}/bills`
-4. `POST /api/v1/sips-connect/verify`
-5. `POST /api/v1/sips-connect/payments/confirm`
-6. `POST /api/v1/sips-connect/payments/status`
-7. `POST /api/v1/sips-connect/payments/reverse`
-8. `GET /api/v1/authorities/{authorityId}/bill-events?cursor=0`
+4. `POST /api/v1/authorities/{authorityId}/bills/{billId}/void`
+5. `POST /api/v1/sips-connect/verify`
+6. `POST /api/v1/sips-connect/payments/confirm`
+7. `POST /api/v1/sips-connect/payments/status`
+8. `POST /api/v1/sips-connect/payments/reverse`
+9. `GET /api/v1/authorities/{authorityId}/bill-events?cursor=0`
 
 Verification returns the compact P2G descriptor in `CB_VerificationResponse.name`. Payment confirmation validates the request against the recorded bill and rejects amount, currency, creditor account, and duplicate-payment mismatches.
+
+Authorities can void an unpaid bill before citizen payment by calling the void endpoint with a required description. Voided bills are no longer returned as payable by SIPS Connect verification, and payment confirmation rejects them with `VOIDED`.
+
+Invoices are only payable when their `mdaCode`, `serviceCode`, and `currency` match an active default revenue-account configuration. Revenue Authority integrations can read the configured combinations before creating invoices:
+
+```text
+GET /api/v1/authorities/{authorityId}/accounts
+GET /api/v1/authorities/{authorityId}/accounts/{accountId}
+```
+
+Portal users with `p2g-configuration-admin` manage those configurations:
+
+```text
+GET /api/v1/dashboard/authorities/{authorityId}/revenue-accounts
+POST /api/v1/dashboard/authorities/{authorityId}/revenue-accounts
+PATCH /api/v1/dashboard/authorities/{authorityId}/revenue-accounts/{accountId}
+```
 
 SIPS Connect endpoints validate the P2G adapter contract before bill lookup or posting:
 
@@ -199,10 +253,10 @@ GET /api/v1/authorities/{authorityId}/bill-events?cursor=0&types=BillPaid&billId
 For tabular finance reconciliation, authorities can list payments and reversals directly:
 
 ```text
-GET /api/v1/authorities/{authorityId}/payments?from={isoDateTime}&to={isoDateTime}&upr={upr}&externalInvoiceId={invoiceId}&txId={txId}&status=ACSC
-GET /api/v1/authorities/{authorityId}/reversals?from={isoDateTime}&to={isoDateTime}&upr={upr}&externalInvoiceId={invoiceId}&txId={txId}
-GET /api/v1/authorities/{authorityId}/payments/export.csv?from={isoDateTime}&to={isoDateTime}&status=ACSC
-GET /api/v1/authorities/{authorityId}/reversals/export.csv?from={isoDateTime}&to={isoDateTime}
+GET /api/v1/authorities/{authorityId}/payments?from={isoDateTime}&to={isoDateTime}&upr={upr}&externalInvoiceId={invoiceId}&txId={txId}&status=ACSC&mdaCode={mdaCode}&serviceCode={serviceCode}&accountNumber={accountNumber}
+GET /api/v1/authorities/{authorityId}/reversals?from={isoDateTime}&to={isoDateTime}&upr={upr}&externalInvoiceId={invoiceId}&txId={txId}&mdaCode={mdaCode}&serviceCode={serviceCode}&accountNumber={accountNumber}
+GET /api/v1/authorities/{authorityId}/payments/export.csv?from={isoDateTime}&to={isoDateTime}&status=ACSC&mdaCode={mdaCode}&serviceCode={serviceCode}&accountNumber={accountNumber}
+GET /api/v1/authorities/{authorityId}/reversals/export.csv?from={isoDateTime}&to={isoDateTime}&mdaCode={mdaCode}&serviceCode={serviceCode}&accountNumber={accountNumber}
 ```
 
 Idempotency is persisted for:

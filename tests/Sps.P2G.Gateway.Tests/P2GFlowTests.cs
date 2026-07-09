@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using Sps.P2G.Gateway.Domain.Bills;
 using Sps.P2G.Gateway.Infrastructure.Database;
 
 namespace Sps.P2G.Gateway.Tests;
@@ -111,6 +112,74 @@ public sealed class P2GFlowTests : IClassFixture<P2GWebApplicationFactory>
         billResponse.EnsureSuccessStatusCode();
         using var billJson = await JsonDocument.ParseAsync(await billResponse.Content.ReadAsStreamAsync());
         Assert.Equal("Fetched", billJson.RootElement.GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public async Task VoidBill_RequiresDescriptionAndBlocksCitizenPayment()
+    {
+        var client = _factory.CreateClient();
+        var setup = await CreateAuthorityAccountAndBillAsync(client, invoiceId: "INV-VOID-001", upr: "SRA-TAX-2026-INV-VOID-001");
+
+        var missingDescriptionRequest = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/authorities/{setup.AuthorityId}/bills/{setup.BillId}/void")
+        {
+            Content = JsonContent.Create(new { description = "" })
+        };
+        missingDescriptionRequest.Headers.Add("X-Authority-Api-Key", setup.ApiKey);
+        using var missingDescriptionResponse = await client.SendAsync(missingDescriptionRequest);
+        Assert.Equal(HttpStatusCode.BadRequest, missingDescriptionResponse.StatusCode);
+
+        var voidRequest = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/authorities/{setup.AuthorityId}/bills/{setup.BillId}/void")
+        {
+            Content = JsonContent.Create(new { description = "Invoice was issued against the wrong taxpayer reference" })
+        };
+        voidRequest.Headers.Add("X-Authority-Api-Key", setup.ApiKey);
+        using var voidResponse = await client.SendAsync(voidRequest);
+        voidResponse.EnsureSuccessStatusCode();
+        using (var voidJson = await JsonDocument.ParseAsync(await voidResponse.Content.ReadAsStreamAsync()))
+        {
+            Assert.Equal("Voided", voidJson.RootElement.GetProperty("status").GetString());
+        }
+
+        using var verifyResponse = await PostInternalAsync(client, "/api/v1/sips-connect/verify", new
+        {
+            accountNo = setup.Upr,
+            accountType = "BILL",
+            agent = "SENDBICXXXX",
+            verificationId = "VER-VOID-001"
+        });
+        verifyResponse.EnsureSuccessStatusCode();
+        using (var verifyJson = await JsonDocument.ParseAsync(await verifyResponse.Content.ReadAsStreamAsync()))
+        {
+            Assert.False(verifyJson.RootElement.GetProperty("isVerified").GetBoolean());
+            Assert.Equal("VOIDED", verifyJson.RootElement.GetProperty("message").GetString());
+        }
+
+        using var paymentResponse = await PostInternalAsync(client, "/api/v1/sips-connect/payments/confirm", new
+        {
+            fromBIC = "SENDBICXXXX",
+            toBIC = "RECVBICXXXX",
+            categoryPurpose = "C2BBPT",
+            txId = "TX-VOID-001",
+            endToEndId = setup.Upr,
+            amount = 125.00m,
+            currency = "USD",
+            creditorName = "Somali Revenue Authority",
+            creditorAccount = "1234567890",
+            creditorAccountType = "ACCT",
+            remittanceInformation = $"BILL:{setup.Upr}",
+            msgDefIdr = "pacs.008"
+        });
+        paymentResponse.EnsureSuccessStatusCode();
+        using (var paymentJson = await JsonDocument.ParseAsync(await paymentResponse.Content.ReadAsStreamAsync()))
+        {
+            Assert.Equal("RJCT", paymentJson.RootElement.GetProperty("status").GetString());
+            Assert.Equal("VOIDED", paymentJson.RootElement.GetProperty("reason").GetString());
+        }
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<GatewayDbContext>();
+        var voidEvent = Assert.Single(db.BillEvents, x => x.BillId == setup.BillId && x.EventType == BillEventTypes.BillVoided);
+        Assert.Contains("wrong taxpayer reference", voidEvent.PayloadJson);
     }
 
     [Fact]
@@ -501,7 +570,9 @@ public sealed class P2GFlowTests : IClassFixture<P2GWebApplicationFactory>
             Content = JsonContent.Create(new
             {
                 mdaCode = "SRA",
+                mdaName = "Somali Revenue Authority",
                 serviceCode = "TAX",
+                serviceName = "Income Tax",
                 revenueCode = "TINCOME",
                 bankCode = "010001",
                 bankName = "CBS Settlement Bank",

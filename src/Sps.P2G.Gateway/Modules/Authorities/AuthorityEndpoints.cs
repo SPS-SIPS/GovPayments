@@ -10,6 +10,7 @@ using Sps.P2G.Gateway.Infrastructure.Database;
 using Sps.P2G.Gateway.Infrastructure.RateLimiting;
 using Sps.P2G.Gateway.Infrastructure.Security;
 using Sps.P2G.Gateway.Infrastructure.Time;
+using Sps.P2G.Gateway.Modules.Configuration;
 using Sps.P2G.Gateway.Modules.Shared;
 
 namespace Sps.P2G.Gateway.Modules.Authorities;
@@ -81,62 +82,29 @@ public static class AuthorityEndpoints
             IClock clock,
             CancellationToken cancellationToken) =>
         {
-            var authority = await EndpointAuth.RequireAuthorityAsync(httpContext, authorityId, db, hasher, cancellationToken);
-            if (authority is null)
+            RevenueAuthority? authority;
+            if (strictAuthorityAuth)
             {
-                return Results.Unauthorized();
-            }
-
-            if (string.IsNullOrWhiteSpace(request.MdaCode) ||
-                string.IsNullOrWhiteSpace(request.ServiceCode) ||
-                string.IsNullOrWhiteSpace(request.AccountNumber) ||
-                string.IsNullOrWhiteSpace(request.AccountName))
-            {
-                return Results.BadRequest(new { error = "mdaCode, serviceCode, accountNumber, and accountName are required" });
-            }
-
-            var now = clock.UtcNow;
-            var hasAnyAccount = await db.RevenueAccounts.AnyAsync(x => x.AuthorityId == authority.Id, cancellationToken);
-            var account = new RevenueAccount
-            {
-                Id = Guid.NewGuid(),
-                AuthorityId = authority.Id,
-                MdaCode = request.MdaCode.Trim().ToUpperInvariant(),
-                ServiceCode = request.ServiceCode.Trim().ToUpperInvariant(),
-                RevenueCode = request.RevenueCode?.Trim().ToUpperInvariant() ?? "",
-                BankCode = request.BankCode?.Trim() ?? "",
-                BankName = request.BankName?.Trim() ?? "",
-                AccountNumber = request.AccountNumber.Trim(),
-                AccountName = request.AccountName.Trim(),
-                ClearingType = string.IsNullOrWhiteSpace(request.ClearingType) ? "ACCT" : request.ClearingType.Trim().ToUpperInvariant(),
-                BillerBic = request.BillerBic?.Trim() ?? "",
-                Currency = string.IsNullOrWhiteSpace(request.Currency) ? "USD" : request.Currency.Trim().ToUpperInvariant(),
-                IsDefault = request.IsDefault || !hasAnyAccount,
-                Status = "Active",
-                CreatedAt = now,
-                UpdatedAt = now
-            };
-
-            if (account.IsDefault)
-            {
-                var existingDefaults = await db.RevenueAccounts
-                    .Where(x => x.AuthorityId == authority.Id && x.MdaCode == account.MdaCode && x.ServiceCode == account.ServiceCode)
-                    .ToListAsync(cancellationToken);
-                foreach (var existingDefault in existingDefaults)
+                authority = await db.RevenueAuthorities.FirstOrDefaultAsync(x => x.Id == authorityId, cancellationToken);
+                if (authority is null)
                 {
-                    existingDefault.IsDefault = false;
-                    existingDefault.UpdatedAt = now;
+                    return Results.NotFound(new { error = "authority was not found" });
+                }
+            }
+            else
+            {
+                authority = await EndpointAuth.RequireAuthorityAsync(httpContext, authorityId, db, hasher, cancellationToken);
+                if (authority is null)
+                {
+                    return Results.Unauthorized();
                 }
             }
 
-            db.RevenueAccounts.Add(account);
-            await db.SaveChangesAsync(cancellationToken);
-
-            return Results.Created($"/api/v1/authorities/{authority.Id}/accounts/{account.Id}", account);
+            return await RevenueConfigurationEndpoints.CreateRevenueAccountAsync(authority, request, db, clock, cancellationToken);
         });
         if (strictAuthorityAuth)
         {
-            createAccount.RequireAuthorization(AuthPolicies.RevenueAuthorityClient);
+            createAccount.RequireAuthorization(AuthPolicies.ConfigurationAdmin);
         }
 
         var createCallbackSubscription = group.MapPost("/{authorityId:guid}/callback-subscriptions", async (
@@ -489,7 +457,9 @@ public sealed record CreateAuthorityRequest(string Code, string Name);
 
 public sealed record CreateRevenueAccountRequest(
     string MdaCode,
+    string? MdaName,
     string ServiceCode,
+    string? ServiceName,
     string? RevenueCode,
     string? BankCode,
     string? BankName,

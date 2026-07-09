@@ -37,6 +37,7 @@ public sealed class StrictJwtWebApplicationFactory : WebApplicationFactory<Progr
                 ["Keycloak:RevenueAuthorityRole"] = "p2g-authority",
                 ["Keycloak:SipsConnectRole"] = "p2g-sips-connect",
                 ["Keycloak:DashboardRole"] = "p2g-dashboard",
+                ["Keycloak:ConfigurationAdminRole"] = "p2g-configuration-admin",
                 ["Keycloak:SipsConnectClientId"] = "sips-connect-p2g",
                 ["Auth:AllowAuthorityApiKeyFallback"] = "false",
                 ["Auth:AllowSipsConnectInternalKeyFallback"] = "false"

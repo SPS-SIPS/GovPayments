@@ -14,6 +14,10 @@
       {
         "name": "p2g-dashboard",
         "description": "Human users allowed to access P2G dashboard APIs and UI."
+      },
+      {
+        "name": "p2g-configuration-admin",
+        "description": "Portal users allowed to configure Revenue Authority MDA/service settlement accounts."
       }
     ]
   },
@@ -121,7 +125,8 @@
         }
       ],
       "realmRoles": [
-        "p2g-dashboard"
+        "p2g-dashboard",
+        "p2g-configuration-admin"
       ]
     }
   ]

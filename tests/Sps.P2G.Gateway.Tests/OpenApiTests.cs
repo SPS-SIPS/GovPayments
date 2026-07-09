@@ -23,6 +23,7 @@ public sealed class OpenApiTests : IClassFixture<P2GWebApplicationFactory>
         var paths = json.RootElement.GetProperty("paths");
 
         Assert.True(paths.TryGetProperty("/api/v1/authorities/{authorityId}/bills", out _));
+        Assert.True(paths.TryGetProperty("/api/v1/authorities/{authorityId}/bills/{billId}/void", out _));
         Assert.True(paths.TryGetProperty("/api/v1/authorities/{authorityId}/payments", out _));
         Assert.True(paths.TryGetProperty("/api/v1/authorities/{authorityId}/payments/export.csv", out _));
         Assert.True(paths.TryGetProperty("/api/v1/authorities/{authorityId}/reversals", out _));

@@ -5,7 +5,9 @@ public sealed class RevenueAccount
     public Guid Id { get; set; }
     public Guid AuthorityId { get; set; }
     public string MdaCode { get; set; } = "";
+    public string MdaName { get; set; } = "";
     public string ServiceCode { get; set; } = "";
+    public string ServiceName { get; set; } = "";
     public string RevenueCode { get; set; } = "";
     public string BankCode { get; set; } = "";
     public string BankName { get; set; } = "";

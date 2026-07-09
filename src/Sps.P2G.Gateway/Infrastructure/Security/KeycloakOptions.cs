@@ -12,5 +12,6 @@ public sealed class KeycloakOptions
     public string RevenueAuthorityRole { get; set; } = "p2g-authority";
     public string SipsConnectRole { get; set; } = "p2g-sips-connect";
     public string DashboardRole { get; set; } = "p2g-dashboard";
+    public string ConfigurationAdminRole { get; set; } = "p2g-configuration-admin";
     public string SipsConnectClientId { get; set; } = "sips-connect-p2g";
 }

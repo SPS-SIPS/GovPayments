@@ -73,6 +73,11 @@ namespace Sps.P2G.Gateway.Infrastructure.Database.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
+                    b.Property<string>("MdaName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
                     b.Property<string>("RevenueCode")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -82,6 +87,11 @@ namespace Sps.P2G.Gateway.Infrastructure.Database.Migrations
                         .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
+
+                    b.Property<string>("ServiceName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
 
                     b.Property<string>("Status")
                         .IsRequired()

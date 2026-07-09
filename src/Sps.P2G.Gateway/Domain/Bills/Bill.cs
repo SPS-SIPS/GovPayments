@@ -33,6 +33,7 @@ public static class BillStatuses
     public const string Paid = "Paid";
     public const string Expired = "Expired";
     public const string Cancelled = "Cancelled";
+    public const string Voided = "Voided";
     public const string Reversed = "Reversed";
     public const string PartiallyReversed = "PartiallyReversed";
     public const string Failed = "Failed";
@@ -47,6 +48,7 @@ public static class BillEventTypes
     public const string PaymentRejected = "PaymentRejected";
     public const string BillPaid = "BillPaid";
     public const string BillCancelled = "BillCancelled";
+    public const string BillVoided = "BillVoided";
     public const string BillReversed = "BillReversed";
     public const string CallbackQueued = "CallbackQueued";
 }

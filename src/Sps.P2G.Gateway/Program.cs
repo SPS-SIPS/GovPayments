@@ -14,6 +14,7 @@ using Sps.P2G.Gateway.Infrastructure.SipsConnect;
 using Sps.P2G.Gateway.Infrastructure.Time;
 using Sps.P2G.Gateway.Modules.Authorities;
 using Sps.P2G.Gateway.Modules.Bills;
+using Sps.P2G.Gateway.Modules.Configuration;
 using Sps.P2G.Gateway.Modules.Dashboard;
 using Sps.P2G.Gateway.Modules.Health;
 using Sps.P2G.Gateway.Modules.Metrics;
@@ -142,6 +143,10 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy(AuthPolicies.DashboardUser, policy =>
         policy.RequireAuthenticatedUser().RequireAssertion(context =>
             AuthClaimReader.HasRealmRole(context.User, keycloakOptions.DashboardRole)));
+    options.AddPolicy(AuthPolicies.ConfigurationAdmin, policy =>
+        policy.RequireAuthenticatedUser().RequireAssertion(context =>
+            AuthClaimReader.HasRealmRole(context.User, keycloakOptions.ConfigurationAdminRole) ||
+            AuthClaimReader.HasClientRole(context.User, keycloakOptions.ConfigurationAdminRole)));
     options.AddPolicy(AuthPolicies.RevenueAuthorityClient, policy =>
         policy.RequireAuthenticatedUser().RequireAssertion(context =>
             AuthClaimReader.HasRealmRole(context.User, keycloakOptions.RevenueAuthorityRole) ||
@@ -171,6 +176,7 @@ app.MapOpenApi();
 app.MapHealthEndpoints();
 app.MapMetricsEndpoints();
 app.MapAuthorityEndpoints();
+app.MapRevenueConfigurationEndpoints();
 app.MapBillEndpoints();
 app.MapReconciliationEndpoints();
 app.MapSipsConnectEndpoints();

@@ -18,7 +18,7 @@ public sealed class StrictJwtEndpointTests : IClassFixture<StrictJwtWebApplicati
     }
 
     [Fact]
-    public async Task AuthorityEndpoint_RejectsApiKeyAndAcceptsRevenueAuthorityBearerToken()
+    public async Task RevenueConfiguration_RequiresConfigurationAdminForWritesAndAllowsAuthorityRead()
     {
         var client = _factory.CreateClient();
         var authority = await SeedAuthorityAsync("SRA");
@@ -28,12 +28,29 @@ public sealed class StrictJwtEndpointTests : IClassFixture<StrictJwtWebApplicati
         using var apiKeyResponse = await client.SendAsync(apiKeyRequest);
         Assert.Equal(HttpStatusCode.Unauthorized, apiKeyResponse.StatusCode);
 
-        var bearerRequest = CreateAccountRequest(authority.Id);
-        bearerRequest.Headers.Authorization = new AuthenticationHeaderValue(
+        var authorityWriteRequest = CreateAccountRequest(authority.Id);
+        authorityWriteRequest.Headers.Authorization = new AuthenticationHeaderValue(
             "Bearer",
             JwtTokenFactory.Create("SRA", ["p2g-authority"]));
-        using var bearerResponse = await client.SendAsync(bearerRequest);
-        Assert.Equal(HttpStatusCode.Created, bearerResponse.StatusCode);
+        using var authorityWriteResponse = await client.SendAsync(authorityWriteRequest);
+        Assert.Equal(HttpStatusCode.Forbidden, authorityWriteResponse.StatusCode);
+
+        var configAdminRequest = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/dashboard/authorities/{authority.Id}/revenue-accounts")
+        {
+            Content = CreateAccountRequest(authority.Id).Content
+        };
+        configAdminRequest.Headers.Authorization = new AuthenticationHeaderValue(
+            "Bearer",
+            JwtTokenFactory.Create("portal-config", ["p2g-configuration-admin"]));
+        using var configAdminResponse = await client.SendAsync(configAdminRequest);
+        Assert.Equal(HttpStatusCode.Created, configAdminResponse.StatusCode);
+
+        var readRequest = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/authorities/{authority.Id}/accounts?mdaCode=SRA&serviceCode=TAX");
+        readRequest.Headers.Authorization = new AuthenticationHeaderValue(
+            "Bearer",
+            JwtTokenFactory.Create("SRA", ["p2g-authority"]));
+        using var readResponse = await client.SendAsync(readRequest);
+        Assert.Equal(HttpStatusCode.OK, readResponse.StatusCode);
     }
 
     [Fact]

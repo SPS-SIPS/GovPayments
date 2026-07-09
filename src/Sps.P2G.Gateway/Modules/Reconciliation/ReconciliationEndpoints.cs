@@ -32,6 +32,10 @@ public static class ReconciliationEndpoints
             string? externalInvoiceId,
             string? txId,
             string? status,
+            string? mdaCode,
+            string? serviceCode,
+            Guid? revenueAccountId,
+            string? accountNumber,
             int? page,
             int? pageSize,
             CancellationToken cancellationToken) =>
@@ -44,7 +48,7 @@ public static class ReconciliationEndpoints
 
             var normalizedPage = NormalizePage(page);
             var normalizedPageSize = NormalizePageSize(pageSize);
-            var query = FilterPayments(db, authority.Id, from, to, upr, externalInvoiceId, txId, status);
+            var query = FilterPayments(db, authority.Id, from, to, upr, externalInvoiceId, txId, status, mdaCode, serviceCode, revenueAccountId, accountNumber);
             var total = await query.CountAsync(cancellationToken);
             var items = await ProjectPayments(query, db)
                 .OrderByDescending(x => x.PaidAt)
@@ -66,6 +70,10 @@ public static class ReconciliationEndpoints
             string? externalInvoiceId,
             string? txId,
             string? status,
+            string? mdaCode,
+            string? serviceCode,
+            Guid? revenueAccountId,
+            string? accountNumber,
             CancellationToken cancellationToken) =>
         {
             var authority = await EndpointAuth.RequireAuthorityAsync(httpContext, authorityId, db, hasher, cancellationToken);
@@ -74,7 +82,7 @@ public static class ReconciliationEndpoints
                 return Results.Unauthorized();
             }
 
-            var rows = await ProjectPayments(FilterPayments(db, authority.Id, from, to, upr, externalInvoiceId, txId, status), db)
+            var rows = await ProjectPayments(FilterPayments(db, authority.Id, from, to, upr, externalInvoiceId, txId, status, mdaCode, serviceCode, revenueAccountId, accountNumber), db)
                 .OrderByDescending(x => x.PaidAt)
                 .Take(10_000)
                 .ToListAsync(cancellationToken);
@@ -92,6 +100,10 @@ public static class ReconciliationEndpoints
             string? upr,
             string? externalInvoiceId,
             string? txId,
+            string? mdaCode,
+            string? serviceCode,
+            Guid? revenueAccountId,
+            string? accountNumber,
             int? page,
             int? pageSize,
             CancellationToken cancellationToken) =>
@@ -104,7 +116,7 @@ public static class ReconciliationEndpoints
 
             var normalizedPage = NormalizePage(page);
             var normalizedPageSize = NormalizePageSize(pageSize);
-            var query = FilterReversals(db, authority.Id, from, to, upr, externalInvoiceId, txId);
+            var query = FilterReversals(db, authority.Id, from, to, upr, externalInvoiceId, txId, mdaCode, serviceCode, revenueAccountId, accountNumber);
             var total = await query.CountAsync(cancellationToken);
             var items = await ProjectReversals(query, db)
                 .OrderByDescending(x => x.ReversedAt)
@@ -125,6 +137,10 @@ public static class ReconciliationEndpoints
             string? upr,
             string? externalInvoiceId,
             string? txId,
+            string? mdaCode,
+            string? serviceCode,
+            Guid? revenueAccountId,
+            string? accountNumber,
             CancellationToken cancellationToken) =>
         {
             var authority = await EndpointAuth.RequireAuthorityAsync(httpContext, authorityId, db, hasher, cancellationToken);
@@ -133,7 +149,7 @@ public static class ReconciliationEndpoints
                 return Results.Unauthorized();
             }
 
-            var rows = await ProjectReversals(FilterReversals(db, authority.Id, from, to, upr, externalInvoiceId, txId), db)
+            var rows = await ProjectReversals(FilterReversals(db, authority.Id, from, to, upr, externalInvoiceId, txId, mdaCode, serviceCode, revenueAccountId, accountNumber), db)
                 .OrderByDescending(x => x.ReversedAt)
                 .Take(10_000)
                 .ToListAsync(cancellationToken);
@@ -152,21 +168,20 @@ public static class ReconciliationEndpoints
         string? upr,
         string? externalInvoiceId,
         string? txId,
-        string? status)
+        string? status,
+        string? mdaCode,
+        string? serviceCode,
+        Guid? revenueAccountId,
+        string? accountNumber)
     {
         var query = db.BillPayments.Where(x => x.AuthorityId == authorityId);
         if (from is not null) query = query.Where(x => x.PaidAt >= from);
         if (to is not null) query = query.Where(x => x.PaidAt <= to);
         if (!string.IsNullOrWhiteSpace(txId)) query = query.Where(x => x.TxId == txId || x.SipsTransactionId == txId);
         if (!string.IsNullOrWhiteSpace(status)) query = query.Where(x => x.Status == status);
-        if (!string.IsNullOrWhiteSpace(upr) || !string.IsNullOrWhiteSpace(externalInvoiceId))
+        var billIds = FilterBillIds(db, authorityId, upr, externalInvoiceId, mdaCode, serviceCode, revenueAccountId, accountNumber);
+        if (billIds is not null)
         {
-            var billIds = db.Bills
-                .Where(x => x.AuthorityId == authorityId)
-                .Where(x =>
-                    (string.IsNullOrWhiteSpace(upr) || x.UPR == upr) &&
-                    (string.IsNullOrWhiteSpace(externalInvoiceId) || x.ExternalInvoiceId == externalInvoiceId))
-                .Select(x => x.Id);
             query = query.Where(x => billIds.Contains(x.BillId));
         }
 
@@ -180,34 +195,79 @@ public static class ReconciliationEndpoints
         DateTimeOffset? to,
         string? upr,
         string? externalInvoiceId,
-        string? txId)
+        string? txId,
+        string? mdaCode,
+        string? serviceCode,
+        Guid? revenueAccountId,
+        string? accountNumber)
     {
         var query = db.BillReversals.Where(x => x.AuthorityId == authorityId);
         if (from is not null) query = query.Where(x => x.ReversedAt >= from);
         if (to is not null) query = query.Where(x => x.ReversedAt <= to);
         if (!string.IsNullOrWhiteSpace(txId)) query = query.Where(x => x.OriginalSipsTransactionId == txId || x.ReversalTransactionId == txId);
-        if (!string.IsNullOrWhiteSpace(upr) || !string.IsNullOrWhiteSpace(externalInvoiceId))
+        var billIds = FilterBillIds(db, authorityId, upr, externalInvoiceId, mdaCode, serviceCode, revenueAccountId, accountNumber);
+        if (billIds is not null)
         {
-            var billIds = db.Bills
-                .Where(x => x.AuthorityId == authorityId)
-                .Where(x =>
-                    (string.IsNullOrWhiteSpace(upr) || x.UPR == upr) &&
-                    (string.IsNullOrWhiteSpace(externalInvoiceId) || x.ExternalInvoiceId == externalInvoiceId))
-                .Select(x => x.Id);
             query = query.Where(x => billIds.Contains(x.BillId));
         }
 
         return query;
     }
 
+    private static IQueryable<Guid>? FilterBillIds(
+        GatewayDbContext db,
+        Guid authorityId,
+        string? upr,
+        string? externalInvoiceId,
+        string? mdaCode,
+        string? serviceCode,
+        Guid? revenueAccountId,
+        string? accountNumber)
+    {
+        if (string.IsNullOrWhiteSpace(upr) &&
+            string.IsNullOrWhiteSpace(externalInvoiceId) &&
+            string.IsNullOrWhiteSpace(mdaCode) &&
+            string.IsNullOrWhiteSpace(serviceCode) &&
+            revenueAccountId is null &&
+            string.IsNullOrWhiteSpace(accountNumber))
+        {
+            return null;
+        }
+
+        var query = db.Bills.Where(x => x.AuthorityId == authorityId);
+        if (!string.IsNullOrWhiteSpace(upr)) query = query.Where(x => x.UPR == upr);
+        if (!string.IsNullOrWhiteSpace(externalInvoiceId)) query = query.Where(x => x.ExternalInvoiceId == externalInvoiceId);
+        if (!string.IsNullOrWhiteSpace(mdaCode)) query = query.Where(x => x.MdaCode == mdaCode.Trim().ToUpperInvariant());
+        if (!string.IsNullOrWhiteSpace(serviceCode)) query = query.Where(x => x.ServiceCode == serviceCode.Trim().ToUpperInvariant());
+        if (revenueAccountId is not null) query = query.Where(x => x.RevenueAccountId == revenueAccountId.Value);
+        if (!string.IsNullOrWhiteSpace(accountNumber))
+        {
+            var accountIds = db.RevenueAccounts
+                .Where(x => x.AuthorityId == authorityId && x.AccountNumber == accountNumber.Trim())
+                .Select(x => x.Id);
+            query = query.Where(x => accountIds.Contains(x.RevenueAccountId));
+        }
+
+        return query.Select(x => x.Id);
+    }
+
     private static IQueryable<PaymentProjection> ProjectPayments(IQueryable<Domain.Payments.BillPayment> query, GatewayDbContext db) =>
         from payment in query
         join bill in db.Bills on payment.BillId equals bill.Id
+        join account in db.RevenueAccounts on bill.RevenueAccountId equals account.Id
         select new PaymentProjection(
             payment.Id,
             payment.BillId,
             bill.UPR,
             bill.ExternalInvoiceId,
+            bill.MdaCode,
+            account.MdaName,
+            bill.ServiceCode,
+            account.ServiceName,
+            bill.RevenueCode,
+            bill.RevenueAccountId,
+            account.AccountNumber,
+            account.AccountName,
             payment.TxId,
             payment.SipsTransactionId,
             payment.EndToEndId,
@@ -226,11 +286,20 @@ public static class ReconciliationEndpoints
     private static IQueryable<ReversalProjection> ProjectReversals(IQueryable<Domain.Payments.BillReversal> query, GatewayDbContext db) =>
         from reversal in query
         join bill in db.Bills on reversal.BillId equals bill.Id
+        join account in db.RevenueAccounts on bill.RevenueAccountId equals account.Id
         select new ReversalProjection(
             reversal.Id,
             reversal.BillId,
             bill.UPR,
             bill.ExternalInvoiceId,
+            bill.MdaCode,
+            account.MdaName,
+            bill.ServiceCode,
+            account.ServiceName,
+            bill.RevenueCode,
+            bill.RevenueAccountId,
+            account.AccountNumber,
+            account.AccountName,
             reversal.OriginalSipsTransactionId,
             reversal.ReversalTransactionId,
             reversal.Amount,
@@ -244,7 +313,7 @@ public static class ReconciliationEndpoints
     private static string ToPaymentCsv(IEnumerable<PaymentProjection> rows)
     {
         var builder = new System.Text.StringBuilder();
-        builder.AppendLine("paymentId,billId,upr,externalInvoiceId,txId,sipsTransactionId,endToEndId,amount,currency,status,paidAt,payerName,payerAccount,payerBankCode,payeeName,payeeAccount,payeeBankCode");
+        builder.AppendLine("paymentId,billId,upr,externalInvoiceId,mdaCode,mdaName,serviceCode,serviceName,revenueCode,revenueAccountId,revenueAccountNumber,revenueAccountName,txId,sipsTransactionId,endToEndId,amount,currency,status,paidAt,payerName,payerAccount,payerBankCode,payeeName,payeeAccount,payeeBankCode");
         foreach (var row in rows)
         {
             AppendCsvLine(builder,
@@ -252,6 +321,14 @@ public static class ReconciliationEndpoints
                 row.BillId,
                 row.UPR,
                 row.ExternalInvoiceId,
+                row.MdaCode,
+                row.MdaName,
+                row.ServiceCode,
+                row.ServiceName,
+                row.RevenueCode,
+                row.RevenueAccountId,
+                row.RevenueAccountNumber,
+                row.RevenueAccountName,
                 row.TxId,
                 row.SipsTransactionId,
                 row.EndToEndId,
@@ -273,7 +350,7 @@ public static class ReconciliationEndpoints
     private static string ToReversalCsv(IEnumerable<ReversalProjection> rows)
     {
         var builder = new System.Text.StringBuilder();
-        builder.AppendLine("reversalId,billId,upr,externalInvoiceId,originalSipsTransactionId,reversalTransactionId,amount,currency,reason,reversedAt");
+        builder.AppendLine("reversalId,billId,upr,externalInvoiceId,mdaCode,mdaName,serviceCode,serviceName,revenueCode,revenueAccountId,revenueAccountNumber,revenueAccountName,originalSipsTransactionId,reversalTransactionId,amount,currency,reason,reversedAt");
         foreach (var row in rows)
         {
             AppendCsvLine(builder,
@@ -281,6 +358,14 @@ public static class ReconciliationEndpoints
                 row.BillId,
                 row.UPR,
                 row.ExternalInvoiceId,
+                row.MdaCode,
+                row.MdaName,
+                row.ServiceCode,
+                row.ServiceName,
+                row.RevenueCode,
+                row.RevenueAccountId,
+                row.RevenueAccountNumber,
+                row.RevenueAccountName,
                 row.OriginalSipsTransactionId,
                 row.ReversalTransactionId,
                 row.Amount,
@@ -316,6 +401,14 @@ internal sealed record PaymentProjection(
     Guid BillId,
     string UPR,
     string ExternalInvoiceId,
+    string MdaCode,
+    string MdaName,
+    string ServiceCode,
+    string ServiceName,
+    string RevenueCode,
+    Guid RevenueAccountId,
+    string RevenueAccountNumber,
+    string RevenueAccountName,
     string TxId,
     string SipsTransactionId,
     string EndToEndId,
@@ -336,6 +429,14 @@ internal sealed record ReversalProjection(
     Guid BillId,
     string UPR,
     string ExternalInvoiceId,
+    string MdaCode,
+    string MdaName,
+    string ServiceCode,
+    string ServiceName,
+    string RevenueCode,
+    Guid RevenueAccountId,
+    string RevenueAccountNumber,
+    string RevenueAccountName,
     string OriginalSipsTransactionId,
     string ReversalTransactionId,
     decimal Amount,

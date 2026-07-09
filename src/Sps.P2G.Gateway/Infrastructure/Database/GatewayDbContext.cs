@@ -38,7 +38,9 @@ public sealed class GatewayDbContext(DbContextOptions<GatewayDbContext> options)
         {
             entity.HasIndex(x => new { x.AuthorityId, x.MdaCode, x.ServiceCode, x.IsDefault });
             entity.Property(x => x.MdaCode).HasMaxLength(32);
+            entity.Property(x => x.MdaName).HasMaxLength(256);
             entity.Property(x => x.ServiceCode).HasMaxLength(32);
+            entity.Property(x => x.ServiceName).HasMaxLength(256);
             entity.Property(x => x.RevenueCode).HasMaxLength(64);
             entity.Property(x => x.AccountNumber).HasMaxLength(64);
             entity.Property(x => x.AccountName).HasMaxLength(256);

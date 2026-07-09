@@ -439,6 +439,7 @@ public static class SipsConnectEndpoints
     {
         if (bill.ExpiresAt <= now) return "EXPIRED";
         if (bill.StatusProjection == BillStatuses.Cancelled) return "CANCELLED";
+        if (bill.StatusProjection == BillStatuses.Voided) return "VOIDED";
         if (bill.StatusProjection == BillStatuses.Paid) return "ALREADY_PAID";
         if (bill.StatusProjection == BillStatuses.Reversed) return "REVERSED";
         if (request.Amount != bill.Amount) return "AMOUNT_MISMATCH";
@@ -454,6 +455,7 @@ public static class SipsConnectEndpoints
         return bill.StatusProjection switch
         {
             BillStatuses.Cancelled => "CANCELLED",
+            BillStatuses.Voided => "VOIDED",
             BillStatuses.Paid => "ALREADY_PAID",
             BillStatuses.Reversed => "REVERSED",
             _ => null

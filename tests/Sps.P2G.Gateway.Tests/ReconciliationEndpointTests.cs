@@ -41,7 +41,7 @@ public sealed class ReconciliationEndpointTests : IClassFixture<P2GWebApplicatio
         });
         paymentResponse.EnsureSuccessStatusCode();
 
-        var paymentsRequest = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/authorities/{setup.AuthorityId}/payments?txId=TX-RECON-001&upr={setup.Upr}&status=ACSC");
+        var paymentsRequest = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/authorities/{setup.AuthorityId}/payments?txId=TX-RECON-001&upr={setup.Upr}&status=ACSC&mdaCode=SRA&serviceCode=TAX&accountNumber=1234567890");
         paymentsRequest.Headers.Add("X-Authority-Api-Key", setup.ApiKey);
         using var paymentsResponse = await client.SendAsync(paymentsRequest);
         paymentsResponse.EnsureSuccessStatusCode();
@@ -51,17 +51,21 @@ public sealed class ReconciliationEndpointTests : IClassFixture<P2GWebApplicatio
             var payment = Assert.Single(paymentsJson.RootElement.GetProperty("items").EnumerateArray());
             Assert.Equal("TX-RECON-001", payment.GetProperty("txId").GetString());
             Assert.Equal(setup.Upr, payment.GetProperty("upr").GetString());
+            Assert.Equal("SRA", payment.GetProperty("mdaCode").GetString());
+            Assert.Equal("Income Tax", payment.GetProperty("serviceName").GetString());
+            Assert.Equal("1234567890", payment.GetProperty("revenueAccountNumber").GetString());
             Assert.Equal("9876543210", payment.GetProperty("payerAccount").GetString());
             Assert.Equal(125.00m, payment.GetProperty("amount").GetDecimal());
         }
 
-        var paymentsExportRequest = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/authorities/{setup.AuthorityId}/payments/export.csv?txId=TX-RECON-001");
+        var paymentsExportRequest = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/authorities/{setup.AuthorityId}/payments/export.csv?mdaCode=SRA&serviceCode=TAX&accountNumber=1234567890");
         paymentsExportRequest.Headers.Add("X-Authority-Api-Key", setup.ApiKey);
         using var paymentsExportResponse = await client.SendAsync(paymentsExportRequest);
         paymentsExportResponse.EnsureSuccessStatusCode();
         Assert.StartsWith("text/csv", paymentsExportResponse.Content.Headers.ContentType?.MediaType);
         var paymentsCsv = await paymentsExportResponse.Content.ReadAsStringAsync();
-        Assert.Contains("paymentId,billId,upr,externalInvoiceId,txId", paymentsCsv);
+        Assert.Contains("paymentId,billId,upr,externalInvoiceId,mdaCode,mdaName,serviceCode,serviceName,revenueCode,revenueAccountId,revenueAccountNumber", paymentsCsv);
+        Assert.Contains("SRA,Somali Revenue Authority,TAX,Income Tax,TINCOME", paymentsCsv);
         Assert.Contains("TX-RECON-001", paymentsCsv);
 
         using var reversalResponse = await P2GFlowTests.PostInternalAsync(client, "/api/v1/sips-connect/payments/reverse", new
@@ -74,7 +78,7 @@ public sealed class ReconciliationEndpointTests : IClassFixture<P2GWebApplicatio
         });
         reversalResponse.EnsureSuccessStatusCode();
 
-        var reversalsRequest = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/authorities/{setup.AuthorityId}/reversals?txId=RTN-RECON-001&externalInvoiceId=INV-RECON-001");
+        var reversalsRequest = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/authorities/{setup.AuthorityId}/reversals?txId=RTN-RECON-001&externalInvoiceId=INV-RECON-001&mdaCode=SRA&serviceCode=TAX&accountNumber=1234567890");
         reversalsRequest.Headers.Add("X-Authority-Api-Key", setup.ApiKey);
         using var reversalsResponse = await client.SendAsync(reversalsRequest);
         reversalsResponse.EnsureSuccessStatusCode();
@@ -85,16 +89,19 @@ public sealed class ReconciliationEndpointTests : IClassFixture<P2GWebApplicatio
             Assert.Equal("TX-RECON-001", reversal.GetProperty("originalSipsTransactionId").GetString());
             Assert.Equal("RTN-RECON-001", reversal.GetProperty("reversalTransactionId").GetString());
             Assert.Equal(setup.Upr, reversal.GetProperty("upr").GetString());
+            Assert.Equal("SRA", reversal.GetProperty("mdaCode").GetString());
+            Assert.Equal("1234567890", reversal.GetProperty("revenueAccountNumber").GetString());
             Assert.Equal("DUPL", reversal.GetProperty("reason").GetString());
         }
 
-        var reversalsExportRequest = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/authorities/{setup.AuthorityId}/reversals/export.csv?txId=RTN-RECON-001");
+        var reversalsExportRequest = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/authorities/{setup.AuthorityId}/reversals/export.csv?mdaCode=SRA&serviceCode=TAX&accountNumber=1234567890");
         reversalsExportRequest.Headers.Add("X-Authority-Api-Key", setup.ApiKey);
         using var reversalsExportResponse = await client.SendAsync(reversalsExportRequest);
         reversalsExportResponse.EnsureSuccessStatusCode();
         Assert.StartsWith("text/csv", reversalsExportResponse.Content.Headers.ContentType?.MediaType);
         var reversalsCsv = await reversalsExportResponse.Content.ReadAsStringAsync();
-        Assert.Contains("reversalId,billId,upr,externalInvoiceId,originalSipsTransactionId", reversalsCsv);
+        Assert.Contains("reversalId,billId,upr,externalInvoiceId,mdaCode,mdaName,serviceCode,serviceName,revenueCode,revenueAccountId,revenueAccountNumber", reversalsCsv);
+        Assert.Contains("SRA,Somali Revenue Authority,TAX,Income Tax,TINCOME", reversalsCsv);
         Assert.Contains("RTN-RECON-001", reversalsCsv);
     }
 }

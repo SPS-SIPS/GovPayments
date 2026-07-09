@@ -119,6 +119,64 @@ public static class BillEndpoints
             return Results.Ok(ProjectBill(bill));
         });
 
+        group.MapPost("/bills/{billId:guid}/void", async (
+            Guid authorityId,
+            Guid billId,
+            VoidBillRequest request,
+            HttpContext httpContext,
+            GatewayDbContext db,
+            IApiKeyHasher hasher,
+            IHashChainService hashChain,
+            IClock clock,
+            CancellationToken cancellationToken) =>
+        {
+            var authority = await EndpointAuth.RequireAuthorityAsync(httpContext, authorityId, db, hasher, cancellationToken);
+            if (authority is null)
+            {
+                return Results.Unauthorized();
+            }
+
+            var description = request.Description?.Trim();
+            if (string.IsNullOrWhiteSpace(description))
+            {
+                return Results.BadRequest(new { error = "description is required" });
+            }
+
+            if (description.Length > 1000)
+            {
+                return Results.BadRequest(new { error = "description must be 1000 characters or fewer" });
+            }
+
+            var bill = await db.Bills.FirstOrDefaultAsync(x => x.AuthorityId == authority.Id && x.Id == billId, cancellationToken);
+            if (bill is null)
+            {
+                return Results.NotFound();
+            }
+
+            if (bill.StatusProjection is not (BillStatuses.Available or BillStatuses.Fetched or BillStatuses.PaymentInitiated))
+            {
+                return Results.Conflict(new { error = $"bill cannot be voided from {bill.StatusProjection}" });
+            }
+
+            var hasSuccessfulPayment = await db.BillPayments.AnyAsync(x => x.BillId == bill.Id && x.Status == "ACSC", cancellationToken);
+            if (hasSuccessfulPayment)
+            {
+                return Results.Conflict(new { error = "paid bill cannot be voided" });
+            }
+
+            bill.StatusProjection = BillStatuses.Voided;
+            bill.UpdatedAt = clock.UtcNow;
+            await hashChain.AppendAsync(db, bill, BillEventTypes.BillVoided, new
+            {
+                bill.Id,
+                bill.UPR,
+                description
+            }, "Authority", authority.Code, "RevenueAuthorityApi", httpContext.TraceIdentifier, cancellationToken);
+            await db.SaveChangesAsync(cancellationToken);
+
+            return Results.Ok(ProjectBill(bill));
+        });
+
         group.MapGet("/bills", async (
             Guid authorityId,
             HttpContext httpContext,
@@ -400,15 +458,23 @@ public static class BillEndpoints
     {
         if (request.RevenueAccountId is { } revenueAccountId)
         {
-            return await db.RevenueAccounts.FirstOrDefaultAsync(x => x.AuthorityId == authorityId && x.Id == revenueAccountId && x.Status == "Active", cancellationToken);
+            var requestedCurrency = request.Currency.Trim().ToUpperInvariant();
+            return await db.RevenueAccounts.FirstOrDefaultAsync(
+                x => x.AuthorityId == authorityId &&
+                     x.Id == revenueAccountId &&
+                     x.Currency == requestedCurrency &&
+                     x.Status == "Active",
+                cancellationToken);
         }
 
         var mdaCode = request.MdaCode.Trim().ToUpperInvariant();
         var serviceCode = request.ServiceCode.Trim().ToUpperInvariant();
+        var currency = request.Currency.Trim().ToUpperInvariant();
         return await db.RevenueAccounts.FirstOrDefaultAsync(
             x => x.AuthorityId == authorityId &&
                  x.MdaCode == mdaCode &&
                  x.ServiceCode == serviceCode &&
+                 x.Currency == currency &&
                  x.IsDefault &&
                  x.Status == "Active",
             cancellationToken);
@@ -430,6 +496,8 @@ public sealed record CreateBillRequest(
     DateTimeOffset ExpiresAt,
     Guid? RevenueAccountId,
     Dictionary<string, object>? Metadata);
+
+public sealed record VoidBillRequest(string? Description);
 
 internal sealed record CreateBillResult(string Status, Guid? BillId, string? Error, Bill? Bill)
 {
