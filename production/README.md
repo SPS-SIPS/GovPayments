@@ -77,6 +77,8 @@ openbao/runtime/
 postgres/data/
 ```
 
+Postgres uses `PGDATA=/var/lib/postgresql/data/pgdata`, so the actual database cluster is stored under `postgres/data/pgdata`. This keeps the bind mount compatible with the tracked `.gitkeep` placeholder in `postgres/data`.
+
 The generated contents are ignored by git. Back up `openbao/keys`, `openbao/data`, `openbao/runtime`, `postgres/data`, and `gateway/data-protection-keys` according to the operations runbook.
 
 ## Ports

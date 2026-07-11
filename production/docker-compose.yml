@@ -44,6 +44,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-sps_p2g_gateway}
       POSTGRES_USER: ${POSTGRES_USER:-sps_p2g}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-this-postgres-password}
+      PGDATA: /var/lib/postgresql/data/pgdata
     ports:
       - "${HOST_IP:-10.128.200.244}:${POSTGRES_HOST_PORT:-5435}:5432"
     volumes:
