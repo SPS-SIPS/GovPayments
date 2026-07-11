@@ -80,10 +80,36 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: validate
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Prepare image tags
+        run: |
+          image_name="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/sps-p2g-gateway"
+          echo "IMAGE_NAME=$image_name" >> "$GITHUB_ENV"
+          echo "IMAGE_SHA_TAG=$image_name:${GITHUB_SHA}" >> "$GITHUB_ENV"
+          echo "IMAGE_LATEST_TAG=$image_name:latest" >> "$GITHUB_ENV"
+
       - name: Build Docker image
-        run: docker build --pull -t sps-p2g-gateway:${{ github.sha }} .
+        run: |
+          docker build --pull \
+            -t "$IMAGE_SHA_TAG" \
+            -t "$IMAGE_LATEST_TAG" \
+            .
+
+      - name: Login to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        run: echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Push SHA image
+        if: github.event_name != 'pull_request'
+        run: docker push "$IMAGE_SHA_TAG"
+
+      - name: Push latest image
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: docker push "$IMAGE_LATEST_TAG"
