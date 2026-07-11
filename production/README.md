@@ -29,6 +29,11 @@ Edit `.env` before startup. At minimum replace:
 - `P2G_DESCRIPTOR_HMAC_SECRET`
 - `P2G_INTERNAL_API_KEY` when SIPS Connect internal-key fallback is used
 - `P2G_KEYCLOAK_AUTHORITY`
+- `SIPS_CONNECT_BASE_URL`
+- `SIPS_CONNECT_TOKEN_ENDPOINT`
+- `SIPS_CONNECT_CLIENT_ID`
+- `SIPS_CONNECT_CLIENT_SECRET`
+- `SIPS_CONNECT_CLIENT_ENABLED=true` after the real SIPS UAT values are configured
 - `GATEWAY_IMAGE_TAG` when deploying a pinned commit SHA instead of `latest`
 
 The default host bindings are:
@@ -48,6 +53,35 @@ docker compose up -d
 ```
 
 The production compose stack starts Postgres, OpenBao, an idempotent OpenBao bootstrap job, the gateway, and an HTTPS edge proxy. Keycloak is expected to be an external production identity service; its issuer URL is written to OpenBao from `.env`.
+
+## Keycloak and SIPS Connect
+
+SIPS Connect UAT calls this gateway with Keycloak bearer tokens:
+
+```text
+Gateway base URL: https://10.128.200.244:8991
+Keycloak issuer:  P2G_KEYCLOAK_AUTHORITY
+API audience:     P2G_KEYCLOAK_AUDIENCE
+SIPS client id:   P2G_KEYCLOAK_SIPS_CONNECT_CLIENT_ID
+Required role:    P2G_KEYCLOAK_SIPS_CONNECT_ROLE
+```
+
+When this gateway calls SIPS Connect UAT for outbound operations such as payment status checks, it uses:
+
+```text
+SIPS_CONNECT_CLIENT_ENABLED
+SIPS_CONNECT_BASE_URL
+SIPS_CONNECT_TOKEN_ENDPOINT
+SIPS_CONNECT_CLIENT_ID
+SIPS_CONNECT_CLIENT_SECRET
+SIPS_CONNECT_SCOPE
+SIPS_CONNECT_PAYMENT_STATUS_PATH
+SIPS_CONNECT_REQUEST_TIMEOUT_SECONDS
+SIPS_CONNECT_REQUIRE_HTTPS
+SIPS_CONNECT_ALLOW_INVALID_SERVER_CERTIFICATE
+```
+
+The bootstrap job writes these values into OpenBao at `secret/sps-p2g-gateway/runtime` on each run.
 
 ## HTTPS Certificate
 

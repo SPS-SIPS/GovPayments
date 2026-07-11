@@ -1,6 +1,7 @@
 using Sps.P2G.Gateway.Infrastructure.Callbacks;
 using Sps.P2G.Gateway.Infrastructure.Secrets;
 using Sps.P2G.Gateway.Infrastructure.Security;
+using Sps.P2G.Gateway.Infrastructure.SipsConnect;
 
 namespace Sps.P2G.Gateway.Infrastructure.Configuration;
 
@@ -105,6 +106,45 @@ public static class ProductionConfigurationValidator
         if (!keycloak.RequireHttpsMetadata)
         {
             errors.Add("Keycloak:RequireHttpsMetadata must be true outside development and test environments.");
+        }
+
+        var sipsConnectClient = configuration.GetSection("SipsConnectClient").Get<SipsConnectClientOptions>() ?? new SipsConnectClientOptions();
+        if (sipsConnectClient.Enabled)
+        {
+            if (string.IsNullOrWhiteSpace(sipsConnectClient.BaseUrl))
+            {
+                errors.Add("SipsConnectClient:BaseUrl is required when SipsConnectClient is enabled.");
+            }
+            else if (sipsConnectClient.RequireHttps &&
+                     !sipsConnectClient.BaseUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                errors.Add("SipsConnectClient:BaseUrl must use HTTPS when SipsConnectClient:RequireHttps is true.");
+            }
+
+            if (string.IsNullOrWhiteSpace(sipsConnectClient.TokenEndpoint))
+            {
+                errors.Add("SipsConnectClient:TokenEndpoint is required when SipsConnectClient is enabled.");
+            }
+            else if (sipsConnectClient.RequireHttps &&
+                     !sipsConnectClient.TokenEndpoint.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                errors.Add("SipsConnectClient:TokenEndpoint must use HTTPS when SipsConnectClient:RequireHttps is true.");
+            }
+
+            if (string.IsNullOrWhiteSpace(sipsConnectClient.ClientId))
+            {
+                errors.Add("SipsConnectClient:ClientId is required when SipsConnectClient is enabled.");
+            }
+
+            if (string.IsNullOrWhiteSpace(sipsConnectClient.ClientSecret))
+            {
+                errors.Add("SipsConnectClient:ClientSecret is required when SipsConnectClient is enabled.");
+            }
+
+            if (string.IsNullOrWhiteSpace(sipsConnectClient.PaymentStatusPath))
+            {
+                errors.Add("SipsConnectClient:PaymentStatusPath is required when SipsConnectClient is enabled.");
+            }
         }
 
         var openBao = configuration.GetSection("OpenBao").Get<OpenBaoOptions>() ?? new OpenBaoOptions();

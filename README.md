@@ -181,6 +181,8 @@ OpenBao: https://10.128.200.244:8992
 Postgres: 10.128.200.244:5435
 ```
 
+SIPS Connect UAT should call the gateway at `https://10.128.200.244:8991/api/v1/sips-connect/*` with a Keycloak token for `P2G_KEYCLOAK_SIPS_CONNECT_CLIENT_ID`. Outbound SIPS Connect status-check settings live in the production `.env` as `SIPS_CONNECT_*` variables and are loaded into OpenBao by the bootstrap job.
+
 ## Auth Headers
 
 Revenue Authority APIs currently accept API-key fallback:

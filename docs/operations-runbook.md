@@ -138,6 +138,21 @@ SIPS Connect uses one confidential client:
 - role: `p2g-sips-connect`
 - audience: `sps-p2g-gateway`
 
+Outbound calls from this gateway to SIPS Connect UAT are configured separately through the production `.env` `SIPS_CONNECT_*` variables. The OpenBao bootstrap maps them to the gateway `SipsConnectClient` configuration section:
+
+```text
+SipsConnectClient:Enabled
+SipsConnectClient:BaseUrl
+SipsConnectClient:TokenEndpoint
+SipsConnectClient:ClientId
+SipsConnectClient:ClientSecret
+SipsConnectClient:Scope
+SipsConnectClient:PaymentStatusPath
+SipsConnectClient:RequestTimeoutSeconds
+SipsConnectClient:RequireHttps
+SipsConnectClient:AllowInvalidServerCertificate
+```
+
 Dashboard users receive realm roles:
 
 - `p2g-dashboard`

@@ -86,6 +86,16 @@ bao kv put "$KV_MOUNT/$SECRET_PATH" \
     Keycloak__DashboardRole="${P2G_KEYCLOAK_DASHBOARD_ROLE:-p2g-dashboard}" \
     Keycloak__ConfigurationAdminRole="${P2G_KEYCLOAK_CONFIGURATION_ADMIN_ROLE:-p2g-configuration-admin}" \
     Keycloak__SipsConnectClientId="${P2G_KEYCLOAK_SIPS_CONNECT_CLIENT_ID:-sips-connect-p2g}" \
+    SipsConnectClient__Enabled="${SIPS_CONNECT_CLIENT_ENABLED:-false}" \
+    SipsConnectClient__BaseUrl="${SIPS_CONNECT_BASE_URL:-}" \
+    SipsConnectClient__TokenEndpoint="${SIPS_CONNECT_TOKEN_ENDPOINT:-}" \
+    SipsConnectClient__ClientId="${SIPS_CONNECT_CLIENT_ID:-}" \
+    SipsConnectClient__ClientSecret="${SIPS_CONNECT_CLIENT_SECRET:-}" \
+    SipsConnectClient__Scope="${SIPS_CONNECT_SCOPE:-}" \
+    SipsConnectClient__PaymentStatusPath="${SIPS_CONNECT_PAYMENT_STATUS_PATH:-/api/v1/payments/status}" \
+    SipsConnectClient__RequestTimeoutSeconds="${SIPS_CONNECT_REQUEST_TIMEOUT_SECONDS:-30}" \
+    SipsConnectClient__RequireHttps="${SIPS_CONNECT_REQUIRE_HTTPS:-true}" \
+    SipsConnectClient__AllowInvalidServerCertificate="${SIPS_CONNECT_ALLOW_INVALID_SERVER_CERTIFICATE:-false}" \
     Auth__AllowAuthorityApiKeyFallback="${P2G_AUTH_ALLOW_AUTHORITY_API_KEY_FALLBACK:-true}" \
     Auth__AllowSipsConnectInternalKeyFallback="${P2G_AUTH_ALLOW_SIPS_CONNECT_INTERNAL_KEY_FALLBACK:-true}" \
     CallbackSecurity__RequireHttps="${P2G_CALLBACK_SECURITY_REQUIRE_HTTPS:-true}" \

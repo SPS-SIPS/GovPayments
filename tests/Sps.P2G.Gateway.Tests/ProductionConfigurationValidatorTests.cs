@@ -72,6 +72,12 @@ public sealed class ProductionConfigurationValidatorTests
                 ["Keycloak:DashboardRole"] = "p2g-dashboard",
                 ["Keycloak:ConfigurationAdminRole"] = "p2g-configuration-admin",
                 ["Keycloak:SipsConnectClientId"] = "sips-connect-p2g",
+                ["SipsConnectClient:Enabled"] = "true",
+                ["SipsConnectClient:BaseUrl"] = "https://sips-connect-uat.example",
+                ["SipsConnectClient:TokenEndpoint"] = "https://keycloak.example/realms/sips/protocol/openid-connect/token",
+                ["SipsConnectClient:ClientId"] = "sps-p2g-gateway",
+                ["SipsConnectClient:ClientSecret"] = "sips-client-secret",
+                ["SipsConnectClient:PaymentStatusPath"] = "/api/v1/payments/status",
                 ["OpenBao:Enabled"] = "true",
                 ["OpenBao:BaseUrl"] = "https://openbao.example",
                 ["OpenBao:Token"] = "bao-token",
@@ -85,6 +91,50 @@ public sealed class ProductionConfigurationValidatorTests
             ProductionConfigurationValidator.Validate(new TestEnvironment("Production"), configuration));
 
         Assert.Null(exception);
+    }
+
+    [Fact]
+    public void Validate_RejectsEnabledSipsConnectClientWithoutCredentials()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:P2G"] = "Host=postgres;Database=p2g;Username=p2g;Password=secret",
+                ["P2G:DescriptorHmacSecret"] = "production-descriptor-secret-32-bytes-minimum",
+                ["Auth:AllowAuthorityApiKeyFallback"] = "false",
+                ["Auth:AllowSipsConnectInternalKeyFallback"] = "false",
+                ["CallbackSecurity:RequireHttps"] = "true",
+                ["CallbackSecurity:AllowPrivateNetworkTargets"] = "false",
+                ["Keycloak:Enabled"] = "true",
+                ["Keycloak:Authority"] = "https://keycloak.example/realms/sps",
+                ["Keycloak:Audience"] = "sps-p2g-gateway",
+                ["Keycloak:RequireHttpsMetadata"] = "true",
+                ["Keycloak:RevenueAuthorityRole"] = "p2g-authority",
+                ["Keycloak:SipsConnectRole"] = "p2g-sips-connect",
+                ["Keycloak:DashboardRole"] = "p2g-dashboard",
+                ["Keycloak:ConfigurationAdminRole"] = "p2g-configuration-admin",
+                ["Keycloak:SipsConnectClientId"] = "sips-connect-p2g",
+                ["SipsConnectClient:Enabled"] = "true",
+                ["SipsConnectClient:BaseUrl"] = "http://sips-connect-uat.example",
+                ["SipsConnectClient:TokenEndpoint"] = "",
+                ["SipsConnectClient:ClientId"] = "",
+                ["SipsConnectClient:ClientSecret"] = "",
+                ["OpenBao:Enabled"] = "true",
+                ["OpenBao:BaseUrl"] = "https://openbao.example",
+                ["OpenBao:Token"] = "bao-token",
+                ["OpenBao:KvMount"] = "secret",
+                ["OpenBao:SecretPath"] = "sps-p2g-gateway/runtime",
+                ["DataProtection:PersistKeysToFileSystemPath"] = "/var/lib/sps-p2g-gateway/data-protection-keys"
+            })
+            .Build();
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            ProductionConfigurationValidator.Validate(new TestEnvironment("Production"), configuration));
+
+        Assert.Contains("SipsConnectClient:BaseUrl must use HTTPS", exception.Message);
+        Assert.Contains("SipsConnectClient:TokenEndpoint is required", exception.Message);
+        Assert.Contains("SipsConnectClient:ClientId is required", exception.Message);
+        Assert.Contains("SipsConnectClient:ClientSecret is required", exception.Message);
     }
 
     private sealed class TestEnvironment(string environmentName) : IHostEnvironment

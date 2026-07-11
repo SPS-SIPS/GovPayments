@@ -63,6 +63,8 @@ builder.Services.AddOptions<HealthOptions>()
     .Bind(builder.Configuration.GetSection("Health"));
 builder.Services.AddOptions<GatewayRateLimitOptions>()
     .Bind(builder.Configuration.GetSection("RateLimits"));
+builder.Services.AddOptions<SipsConnectClientOptions>()
+    .Bind(builder.Configuration.GetSection("SipsConnectClient"));
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
@@ -125,8 +127,29 @@ builder.Services.AddSingleton<IClock, SystemClock>();
 builder.Services.AddSingleton<IApiKeyHasher, Sha256ApiKeyHasher>();
 builder.Services.AddSingleton<IHashChainService, HashChainService>();
 builder.Services.AddSingleton<IDescriptorService, DescriptorService>();
+builder.Services.AddSingleton<ISipsConnectStatusClient, SipsConnectStatusClient>();
 builder.Services.AddSingleton<ICallbackDispatcher, CallbackDispatcher>();
-builder.Services.AddHttpClient();
+builder.Services.AddHttpClient("SipsConnect", (serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<IOptions<SipsConnectClientOptions>>().Value;
+    if (!string.IsNullOrWhiteSpace(options.BaseUrl))
+    {
+        client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
+    }
+
+    client.Timeout = TimeSpan.FromSeconds(Math.Clamp(options.RequestTimeoutSeconds, 1, 120));
+})
+.ConfigurePrimaryHttpMessageHandler(serviceProvider =>
+{
+    var options = serviceProvider.GetRequiredService<IOptions<SipsConnectClientOptions>>().Value;
+    var handler = new HttpClientHandler();
+    if (options.AllowInvalidServerCertificate)
+    {
+        handler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
+    }
+
+    return handler;
+});
 builder.Services.AddHostedService<CallbackDispatchWorker>();
 
 builder.Services
