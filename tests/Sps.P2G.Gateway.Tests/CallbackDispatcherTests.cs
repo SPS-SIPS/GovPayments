@@ -31,6 +31,9 @@ public sealed class CallbackDispatcherTests
         Assert.Equal(1, delivery.AttemptCount);
         Assert.Equal(1, outbox.Attempts);
         Assert.NotNull(outbox.ProcessedAt);
+        Assert.Equal("", outbox.LockToken);
+        Assert.Null(outbox.LockedAt);
+        Assert.Null(outbox.LockExpiresAt);
         Assert.Single(handler.Requests);
 
         var request = handler.Requests.Single();
@@ -70,6 +73,9 @@ public sealed class CallbackDispatcherTests
         Assert.Contains("HTTP 503", delivery.LastError);
         Assert.NotNull(delivery.NextAttemptAt);
         Assert.NotNull(outbox.NextAttemptAt);
+        Assert.Equal("", outbox.LockToken);
+        Assert.Null(outbox.LockedAt);
+        Assert.Null(outbox.LockExpiresAt);
     }
 
     [Fact]
@@ -119,19 +125,87 @@ public sealed class CallbackDispatcherTests
         Assert.Empty(handler.Requests);
     }
 
+    [Fact]
+    public async Task DispatchDueCallbacksAsync_SkipsCallbackClaimedByAnotherWorker()
+    {
+        var handler = new CapturingHandler(_ => new HttpResponseMessage(HttpStatusCode.OK));
+        await using var provider = BuildProvider(handler);
+        await SeedCallbackAsync(provider);
+
+        await using (var scope = provider.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<GatewayDbContext>();
+            var outbox = await db.OutboxMessages.SingleAsync();
+            outbox.Status = "Processing";
+            outbox.LockToken = "other-worker";
+            outbox.LockedAt = TestNow;
+            outbox.LockExpiresAt = TestNow.AddMinutes(2);
+            await db.SaveChangesAsync();
+        }
+
+        await provider.GetRequiredService<ICallbackDispatcher>().DispatchDueCallbacksAsync(CancellationToken.None);
+
+        await using (var scope = provider.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<GatewayDbContext>();
+            var outbox = await db.OutboxMessages.SingleAsync();
+            var delivery = await db.CallbackDeliveries.SingleAsync();
+            Assert.Equal("Processing", outbox.Status);
+            Assert.Equal("other-worker", outbox.LockToken);
+            Assert.Equal(0, outbox.Attempts);
+            Assert.Equal(0, delivery.AttemptCount);
+            Assert.Empty(handler.Requests);
+        }
+    }
+
+    [Fact]
+    public async Task DispatchDueCallbacksAsync_ReclaimsExpiredCallbackClaim()
+    {
+        var handler = new CapturingHandler(_ => new HttpResponseMessage(HttpStatusCode.OK));
+        await using var provider = BuildProvider(handler);
+        await SeedCallbackAsync(provider);
+
+        await using (var scope = provider.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<GatewayDbContext>();
+            var outbox = await db.OutboxMessages.SingleAsync();
+            outbox.Status = "Processing";
+            outbox.LockToken = "stale-worker";
+            outbox.LockedAt = TestNow.AddMinutes(-5);
+            outbox.LockExpiresAt = TestNow.AddSeconds(-1);
+            await db.SaveChangesAsync();
+        }
+
+        await provider.GetRequiredService<ICallbackDispatcher>().DispatchDueCallbacksAsync(CancellationToken.None);
+
+        await using (var scope = provider.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<GatewayDbContext>();
+            var outbox = await db.OutboxMessages.SingleAsync();
+            var delivery = await db.CallbackDeliveries.SingleAsync();
+            Assert.Equal("Delivered", outbox.Status);
+            Assert.Equal("Delivered", delivery.Status);
+            Assert.Equal("", outbox.LockToken);
+            Assert.Null(outbox.LockedAt);
+            Assert.Null(outbox.LockExpiresAt);
+            Assert.Single(handler.Requests);
+        }
+    }
+
     private static ServiceProvider BuildProvider(CapturingHandler handler, int maxAttempts = 3)
     {
         var services = new ServiceCollection();
         var databaseName = $"callbacks-{Guid.NewGuid()}";
         services.AddDbContext<GatewayDbContext>(options => options.UseInMemoryDatabase(databaseName));
         services.AddDataProtection();
-        services.AddSingleton<IClock>(new FixedClock(new DateTimeOffset(2026, 7, 8, 10, 0, 0, TimeSpan.Zero)));
+        services.AddSingleton<IClock>(new FixedClock(TestNow));
         services.AddSingleton<IHttpClientFactory>(new FakeHttpClientFactory(handler));
         services.AddSingleton(Options.Create(new CallbackDispatchOptions
         {
             BatchSize = 10,
             MaxAttempts = maxAttempts,
-            RequestTimeoutSeconds = 10
+            RequestTimeoutSeconds = 10,
+            ClaimTimeoutSeconds = 120
         }));
         services.AddSingleton(Options.Create(new CallbackSecurityOptions()));
         services.AddScoped<ICallbackDispatcher, CallbackDispatcher>();
@@ -146,7 +220,7 @@ public sealed class CallbackDispatcherTests
             .GetRequiredService<IDataProtectionProvider>()
             .CreateProtector("Sps.P2G.CallbackSecret.v1");
 
-        var now = new DateTimeOffset(2026, 7, 8, 10, 0, 0, TimeSpan.Zero);
+        var now = TestNow;
         var authorityId = Guid.NewGuid();
         var subscriptionId = Guid.NewGuid();
         var deliveryId = Guid.NewGuid();
@@ -196,6 +270,8 @@ public sealed class CallbackDispatcherTests
     }
 
     private sealed record SeededCallback(Guid EventId, string PayloadJson, string Secret);
+
+    private static readonly DateTimeOffset TestNow = new(2026, 7, 8, 10, 0, 0, TimeSpan.Zero);
 
     private sealed class FixedClock(DateTimeOffset utcNow) : IClock
     {

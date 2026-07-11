@@ -7,4 +7,5 @@ public sealed class CallbackDispatchOptions
     public int BatchSize { get; set; } = 25;
     public int MaxAttempts { get; set; } = 8;
     public int RequestTimeoutSeconds { get; set; } = 10;
+    public int ClaimTimeoutSeconds { get; set; } = 120;
 }

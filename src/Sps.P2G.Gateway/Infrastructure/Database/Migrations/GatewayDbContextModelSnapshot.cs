@@ -510,6 +510,17 @@ namespace Sps.P2G.Gateway.Infrastructure.Database.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<DateTimeOffset?>("LockExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LockToken")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTimeOffset?>("LockedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTimeOffset?>("NextAttemptAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -531,6 +542,10 @@ namespace Sps.P2G.Gateway.Infrastructure.Database.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("AggregateId");
+
+                    b.HasIndex("LockToken");
+
+                    b.HasIndex("Status", "LockExpiresAt");
 
                     b.HasIndex("Status", "NextAttemptAt");
 

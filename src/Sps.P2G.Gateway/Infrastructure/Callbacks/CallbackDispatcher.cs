@@ -27,18 +27,82 @@ public sealed class CallbackDispatcher(
         await using var scope = scopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<GatewayDbContext>();
         var now = clock.UtcNow;
+        var lockToken = Guid.NewGuid().ToString("N");
 
-        var outboxMessages = await db.OutboxMessages
-            .Where(x => x.Status == "Pending" && x.Type.StartsWith("Callback:") && (x.NextAttemptAt == null || x.NextAttemptAt <= now))
-            .OrderBy(x => x.CreatedAt)
-            .Take(Math.Max(1, options.Value.BatchSize))
-            .ToListAsync(cancellationToken);
+        var outboxMessages = await ClaimDueOutboxMessagesAsync(db, lockToken, now, cancellationToken);
 
         foreach (var outbox in outboxMessages)
         {
             await DispatchOneAsync(db, outbox, cancellationToken);
             await db.SaveChangesAsync(cancellationToken);
         }
+    }
+
+    private async Task<List<OutboxMessage>> ClaimDueOutboxMessagesAsync(
+        GatewayDbContext db,
+        string lockToken,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var batchSize = Math.Max(1, options.Value.BatchSize);
+        var claimTimeoutSeconds = Math.Max(30, options.Value.ClaimTimeoutSeconds);
+        var lockExpiresAt = now.AddSeconds(claimTimeoutSeconds);
+        var dueQuery = DueCallbackQuery(db, now);
+        var ids = await dueQuery
+            .OrderBy(x => x.CreatedAt)
+            .Select(x => x.Id)
+            .Take(batchSize)
+            .ToListAsync(cancellationToken);
+
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        if (db.Database.IsRelational())
+        {
+            await db.OutboxMessages
+                .Where(x => ids.Contains(x.Id))
+                .Where(x => x.Type.StartsWith("Callback:"))
+                .Where(x =>
+                    (x.Status == "Pending" && (x.NextAttemptAt == null || x.NextAttemptAt <= now)) ||
+                    (x.Status == "Processing" && x.LockExpiresAt != null && x.LockExpiresAt <= now))
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(x => x.Status, "Processing")
+                    .SetProperty(x => x.LockToken, lockToken)
+                    .SetProperty(x => x.LockedAt, now)
+                    .SetProperty(x => x.LockExpiresAt, lockExpiresAt),
+                    cancellationToken);
+
+            return await db.OutboxMessages
+                .Where(x => x.Status == "Processing" && x.LockToken == lockToken)
+                .OrderBy(x => x.CreatedAt)
+                .ToListAsync(cancellationToken);
+        }
+
+        var messages = await db.OutboxMessages
+            .Where(x => ids.Contains(x.Id))
+            .OrderBy(x => x.CreatedAt)
+            .ToListAsync(cancellationToken);
+        foreach (var outbox in messages)
+        {
+            outbox.Status = "Processing";
+            outbox.LockToken = lockToken;
+            outbox.LockedAt = now;
+            outbox.LockExpiresAt = lockExpiresAt;
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+        return messages;
+    }
+
+    private static IQueryable<OutboxMessage> DueCallbackQuery(GatewayDbContext db, DateTimeOffset now)
+    {
+        return db.OutboxMessages
+            .Where(x => x.Type.StartsWith("Callback:"))
+            .Where(x =>
+                (x.Status == "Pending" && (x.NextAttemptAt == null || x.NextAttemptAt <= now)) ||
+                (x.Status == "Processing" && x.LockExpiresAt != null && x.LockExpiresAt <= now));
     }
 
     private async Task DispatchOneAsync(GatewayDbContext db, OutboxMessage outbox, CancellationToken cancellationToken)
@@ -49,6 +113,7 @@ public sealed class CallbackDispatcher(
             outbox.Status = "DeadLetter";
             outbox.LastError = "Callback delivery record not found.";
             outbox.ProcessedAt = clock.UtcNow;
+            ClearClaim(outbox);
             return;
         }
 
@@ -102,6 +167,7 @@ public sealed class CallbackDispatcher(
                 outbox.Status = "Delivered";
                 outbox.LastError = "";
                 outbox.ProcessedAt = now;
+                ClearClaim(outbox);
                 return;
             }
 
@@ -138,6 +204,7 @@ public sealed class CallbackDispatcher(
         outbox.Status = "Pending";
         outbox.LastError = error;
         outbox.NextAttemptAt = nextAttempt;
+        ClearClaim(outbox);
     }
 
     private void MarkDeadLetter(OutboxMessage outbox, CallbackDelivery delivery, string error)
@@ -150,5 +217,13 @@ public sealed class CallbackDispatcher(
         outbox.Status = "DeadLetter";
         outbox.LastError = error;
         outbox.ProcessedAt = now;
+        ClearClaim(outbox);
+    }
+
+    private static void ClearClaim(OutboxMessage outbox)
+    {
+        outbox.LockToken = "";
+        outbox.LockedAt = null;
+        outbox.LockExpiresAt = null;
     }
 }

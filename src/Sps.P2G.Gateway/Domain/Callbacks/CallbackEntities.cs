@@ -40,6 +40,9 @@ public sealed class OutboxMessage
     public string Status { get; set; } = "Pending";
     public int Attempts { get; set; }
     public DateTimeOffset? NextAttemptAt { get; set; }
+    public string LockToken { get; set; } = "";
+    public DateTimeOffset? LockedAt { get; set; }
+    public DateTimeOffset? LockExpiresAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? ProcessedAt { get; set; }
     public string LastError { get; set; } = "";

@@ -115,7 +115,10 @@ public sealed class GatewayDbContext(DbContextOptions<GatewayDbContext> options)
         {
             entity.HasIndex(x => new { x.Status, x.NextAttemptAt });
             entity.HasIndex(x => new { x.Type, x.Status, x.NextAttemptAt });
+            entity.HasIndex(x => new { x.Status, x.LockExpiresAt });
+            entity.HasIndex(x => x.LockToken);
             entity.HasIndex(x => x.AggregateId);
+            entity.Property(x => x.LockToken).HasMaxLength(64);
             entity.Property(x => x.PayloadJson).HasColumnType("jsonb");
         });
         modelBuilder.Entity<IdempotencyRecord>().HasIndex(x => x.Key).IsUnique();
