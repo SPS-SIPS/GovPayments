@@ -173,6 +173,14 @@ docker compose up -d
 
 The gateway image defaults to `ghcr.io/hanadderia/sps-p2g-gateway:latest`. Set `GATEWAY_IMAGE_TAG` in `production/.env` to deploy a pinned commit SHA. See `production/README.md` for required secrets, directories, and runtime checks.
 
+Default production host bindings use HTTPS for the public services:
+
+```text
+Gateway: https://10.128.200.244:8991
+OpenBao: https://10.128.200.244:8992
+Postgres: 10.128.200.244:5435
+```
+
 ## Auth Headers
 
 Revenue Authority APIs currently accept API-key fallback:

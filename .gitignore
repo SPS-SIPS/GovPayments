@@ -8,6 +8,7 @@ security/openbao/logs/
 security/openbao/runtime/
 
 production/.env
+production/certs/*
 production/openbao/audit/*
 production/openbao/data/*
 production/openbao/keys/*
@@ -15,6 +16,7 @@ production/openbao/logs/*
 production/openbao/runtime/*
 production/postgres/data/*
 production/gateway/data-protection-keys/*
+!production/certs/.gitkeep
 !production/openbao/audit/.gitkeep
 !production/openbao/data/.gitkeep
 !production/openbao/keys/.gitkeep

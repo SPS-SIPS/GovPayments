@@ -31,6 +31,15 @@ Edit `.env` before startup. At minimum replace:
 - `P2G_KEYCLOAK_AUTHORITY`
 - `GATEWAY_IMAGE_TAG` when deploying a pinned commit SHA instead of `latest`
 
+The default host bindings are:
+
+```text
+HOST_IP=10.128.200.244
+GATEWAY_HOST_PORT=8991
+POSTGRES_HOST_PORT=5435
+OPENBAO_HOST_PORT=8992
+```
+
 Start the stack:
 
 ```bash
@@ -38,7 +47,19 @@ docker compose pull
 docker compose up -d
 ```
 
-The production compose stack starts Postgres, OpenBao, an idempotent OpenBao bootstrap job, and the gateway. Keycloak is expected to be an external production identity service; its issuer URL is written to OpenBao from `.env`.
+The production compose stack starts Postgres, OpenBao, an idempotent OpenBao bootstrap job, the gateway, and an HTTPS edge proxy. Keycloak is expected to be an external production identity service; its issuer URL is written to OpenBao from `.env`.
+
+## HTTPS Certificate
+
+The `cert-init` service generates a self-signed certificate on startup when `certs/sps-p2g.crt` and `certs/sps-p2g.key` are missing. The certificate includes `HOST_IP` as an IP subject alternative name and uses `CERT_DNS_NAMES` for DNS subject alternative names.
+
+You can also generate it manually:
+
+```bash
+HOST_IP=10.128.200.244 ./scripts/generate-self-signed-cert.sh
+```
+
+Clients must trust `certs/sps-p2g.crt` or call the endpoints with certificate verification disabled while this self-signed certificate is in use.
 
 ## Runtime Directories
 
@@ -46,6 +67,8 @@ The compose file uses bind-mounted directories under this folder:
 
 ```text
 gateway/data-protection-keys/
+certs/
+nginx/conf.d/
 openbao/audit/
 openbao/data/
 openbao/keys/
@@ -61,17 +84,18 @@ The generated contents are ignored by git. Back up `openbao/keys`, `openbao/data
 Defaults:
 
 ```text
-Gateway: http://localhost:8080
-OpenBao host admin port: http://127.0.0.1:8201
-Postgres host port: 127.0.0.1:5432
+Gateway: https://10.128.200.244:8991
+OpenBao: https://10.128.200.244:8992
+Postgres: 10.128.200.244:5435
 ```
 
-Override `GATEWAY_HOST_PORT`, `OPENBAO_HOST_PORT`, and `POSTGRES_HOST_PORT` in `.env` when needed.
+Override `HOST_IP`, `GATEWAY_HOST_PORT`, `OPENBAO_HOST_PORT`, and `POSTGRES_HOST_PORT` in `.env` when needed.
 
 ## Checks
 
 ```bash
 docker compose ps
-curl -fsS http://localhost:${GATEWAY_HOST_PORT:-8080}/health/ready
-docker compose logs --tail=120 gateway openbao-bootstrap
+curl -k -fsS https://${HOST_IP:-10.128.200.244}:${GATEWAY_HOST_PORT:-8991}/health/ready
+curl -k -fsS https://${HOST_IP:-10.128.200.244}:${OPENBAO_HOST_PORT:-8992}/v1/sys/health
+docker compose logs --tail=120 gateway openbao-bootstrap edge-proxy
 ```

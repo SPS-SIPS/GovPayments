@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
@@ -62,6 +63,20 @@ builder.Services.AddOptions<HealthOptions>()
     .Bind(builder.Configuration.GetSection("Health"));
 builder.Services.AddOptions<GatewayRateLimitOptions>()
     .Bind(builder.Configuration.GetSection("RateLimits"));
+
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    if (!builder.Configuration.GetValue<bool>("ForwardedHeaders:Enabled"))
+    {
+        return;
+    }
+
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor |
+                               ForwardedHeaders.XForwardedProto |
+                               ForwardedHeaders.XForwardedHost;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 
 builder.Services.AddRateLimiter(options =>
 {
@@ -176,6 +191,11 @@ builder.Services.AddAuthorization(options =>
 });
 
 var app = builder.Build();
+
+if (app.Configuration.GetValue<bool>("ForwardedHeaders:Enabled"))
+{
+    app.UseForwardedHeaders();
+}
 
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseMiddleware<SecurityHeadersMiddleware>();

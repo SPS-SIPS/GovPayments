@@ -1,6 +1,42 @@
 name: sps-p2g-production
 
 services:
+  cert-init:
+    image: alpine:3.20
+    environment:
+      CERT_DIR: /certs
+      CERT_HOST_IP: ${HOST_IP:-10.128.200.244}
+      CERT_DNS_NAMES: ${CERT_DNS_NAMES:-localhost,sps-p2g-gateway,sps-p2g-openbao}
+      CERT_DAYS: ${CERT_DAYS:-825}
+    volumes:
+      - ./certs:/certs
+      - ./scripts/generate-self-signed-cert.sh:/usr/local/bin/generate-self-signed-cert.sh:ro
+    command: >
+      sh -c "apk add --no-cache openssl >/dev/null &&
+             /usr/local/bin/generate-self-signed-cert.sh"
+
+  edge-proxy:
+    image: nginx:1.27-alpine
+    depends_on:
+      cert-init:
+        condition: service_completed_successfully
+      gateway:
+        condition: service_started
+      openbao:
+        condition: service_healthy
+    restart: unless-stopped
+    ports:
+      - "${HOST_IP:-10.128.200.244}:${GATEWAY_HOST_PORT:-8991}:8443"
+      - "${HOST_IP:-10.128.200.244}:${OPENBAO_HOST_PORT:-8992}:9443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./certs:/etc/nginx/certs:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -9,7 +45,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-sps_p2g}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-this-postgres-password}
     ports:
-      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
+      - "${HOST_IP:-10.128.200.244}:${POSTGRES_HOST_PORT:-5435}:5432"
     volumes:
       - ./postgres/data:/var/lib/postgresql/data
     healthcheck:
@@ -44,8 +80,6 @@ services:
     user: "100:1000"
     security_opt:
       - no-new-privileges:true
-    ports:
-      - "127.0.0.1:${OPENBAO_HOST_PORT:-8201}:8200"
     environment:
       BAO_ADDR: http://127.0.0.1:8200
     volumes:
@@ -115,8 +149,7 @@ services:
       OpenBao__SecretPath: sps-p2g-gateway/runtime
       Database__RunMigrationsOnStartup: ${DATABASE_RUN_MIGRATIONS_ON_STARTUP:-true}
       Callbacks__Enabled: ${CALLBACKS_ENABLED:-true}
-    ports:
-      - "${GATEWAY_HOST_PORT:-8080}:8080"
+      ForwardedHeaders__Enabled: "true"
     volumes:
       - ./gateway/data-protection-keys:/var/lib/sps-p2g-gateway/data-protection-keys
       - ./openbao/runtime:/run/openbao:ro

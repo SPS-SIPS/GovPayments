@@ -30,6 +30,16 @@ docker compose up -d
 
 The production bundle pulls `ghcr.io/hanadderia/sps-p2g-gateway:${GATEWAY_IMAGE_TAG:-latest}` and stores generated runtime data under `production/openbao`, `production/postgres`, and `production/gateway`. The OpenBao bootstrap job writes runtime KV values from `production/.env` each time it runs, so treat `.env` as the source of truth for those seeded settings.
 
+Default production host bindings:
+
+```text
+Gateway: https://10.128.200.244:8991
+OpenBao: https://10.128.200.244:8992
+Postgres: 10.128.200.244:5435
+```
+
+The production compose bundle includes an HTTPS edge proxy and a `cert-init` job that creates `production/certs/sps-p2g.crt` and `production/certs/sps-p2g.key` when they are missing. Replace the self-signed certificate with a CA-issued certificate when one is available.
+
 Start the full stack:
 
 ```bash

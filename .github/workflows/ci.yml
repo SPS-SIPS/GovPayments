@@ -69,6 +69,7 @@ jobs:
           for script in security/openbao/scripts/*.sh; do
             bash -n "$script"
           done
+          bash -n production/scripts/generate-self-signed-cert.sh
           bash -n production/openbao/scripts/bao-compose-bootstrap.sh
 
       - name: Upload test results
