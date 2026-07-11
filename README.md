@@ -13,12 +13,14 @@ tests/
   Sps.P2G.Gateway.Tests/
 docs/
   itax-revenue-authority-integration.md
+  operations-runbook.md
 security/
   production.env.example
   openbao/
 ```
 
 The iTax Revenue Authority integration guide is available at `docs/itax-revenue-authority-integration.md`.
+The production operations runbook is available at `docs/operations-runbook.md`.
 
 ## Local Configuration
 
@@ -105,7 +107,7 @@ The generator writes `artifacts/openapi/openapi.json` and `artifacts/openapi/ope
 
 ## OpenBao Secrets
 
-Production deployments load runtime secrets from OpenBao KV v2 before startup validation runs. The OpenBao security bundle lives under `security/openbao` and is adapted from the Helios security-tier configuration with SPS P2G service names.
+Production deployments load runtime secrets from OpenBao KV v2 before startup validation runs. The OpenBao security bundle lives under `security/openbao` and is adapted from the Helios OpenBao pattern with SPS P2G service names.
 
 ```bash
 make security-prepare
