@@ -11,6 +11,16 @@ namespace Sps.P2G.Gateway.Infrastructure.Database.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.CreateSequence(
+                name: "BillEventSequence");
+
+            migrationBuilder.Sql("""
+                SELECT setval(
+                    '"BillEventSequence"',
+                    GREATEST(COALESCE((SELECT MAX("Sequence") FROM "BillEvents"), 0) + 1, 1),
+                    false);
+                """);
+
             migrationBuilder.AddColumn<DateTimeOffset>(
                 name: "LockExpiresAt",
                 table: "OutboxMessages",
@@ -64,6 +74,9 @@ namespace Sps.P2G.Gateway.Infrastructure.Database.Migrations
             migrationBuilder.DropColumn(
                 name: "LockedAt",
                 table: "OutboxMessages");
+
+            migrationBuilder.DropSequence(
+                name: "BillEventSequence");
         }
     }
 }

@@ -25,6 +25,8 @@ public sealed class GatewayDbContext(DbContextOptions<GatewayDbContext> options)
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.HasSequence<long>("BillEventSequence");
+
         modelBuilder.Entity<RevenueAuthority>(entity =>
         {
             entity.HasIndex(x => x.Code).IsUnique();

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Npgsql;
 using Sps.P2G.Gateway.Domain.Bills;
 using Sps.P2G.Gateway.Domain.Callbacks;
 using Sps.P2G.Gateway.Domain.Payments;
@@ -175,7 +176,14 @@ public static class SipsConnectEndpoints
                         ResourceId = existingPayment.Id,
                         CreatedAt = clock.UtcNow
                     });
-                    await db.SaveChangesAsync(cancellationToken);
+                    try
+                    {
+                        await db.SaveChangesAsync(cancellationToken);
+                    }
+                    catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+                    {
+                        db.ChangeTracker.Clear();
+                    }
                 }
 
                 return Results.Ok(PaymentResponse.Accepted(existingPayment.EndToEndId, paymentTxId, "Duplicate payment already processed"));
@@ -194,6 +202,12 @@ public static class SipsConnectEndpoints
             var validationError = ValidatePayment(request, bill, account, clock.UtcNow);
             if (validationError is not null)
             {
+                var duplicateResponse = await TryBuildDuplicatePaymentResponseAsync(db, paymentTxId, payloadHash, paymentEndToEndId, cancellationToken);
+                if (duplicateResponse is not null)
+                {
+                    return Results.Ok(duplicateResponse);
+                }
+
                 await StoreAttemptAsync(db, request, bill.Id, bill.AuthorityId, "RJCT", validationError, clock, cancellationToken);
                 await hashChain.AppendAsync(db, bill, BillEventTypes.PaymentRejected, new { bill.Id, bill.UPR, txId = paymentTxId, reason = validationError }, "SipsConnect", request.FromBIC ?? "", "SipsConnect", paymentTxId, cancellationToken);
                 await db.SaveChangesAsync(cancellationToken);
@@ -244,7 +258,23 @@ public static class SipsConnectEndpoints
             await hashChain.AppendAsync(db, bill, BillEventTypes.PaymentAccepted, new { bill.Id, bill.UPR, txId = paymentTxId, request.Amount, currency = paymentCurrency }, "SipsConnect", request.FromBIC ?? "", "SipsConnect", paymentTxId, cancellationToken);
             var paidEvent = await hashChain.AppendAsync(db, bill, BillEventTypes.BillPaid, new { bill.Id, bill.UPR, txId = paymentTxId, request.Amount, currency = paymentCurrency, paidAt }, "SipsConnect", request.FromBIC ?? "", "SipsConnect", paymentTxId, cancellationToken);
             await QueueCallbacksAsync(db, bill.AuthorityId, paidEvent, clock, cancellationToken);
-            await db.SaveChangesAsync(cancellationToken);
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+            {
+                db.ChangeTracker.Clear();
+                var duplicatePayment = await db.BillPayments.FirstOrDefaultAsync(
+                    x => x.SipsTransactionId == paymentTxId || x.TxId == paymentTxId,
+                    cancellationToken);
+                if (duplicatePayment is null)
+                {
+                    throw;
+                }
+
+                return Results.Ok(BuildDuplicatePaymentResponse(duplicatePayment, paymentTxId, payloadHash, paymentEndToEndId));
+            }
 
             return Results.Ok(PaymentResponse.Accepted(paymentEndToEndId, paymentTxId, "Invoice payment accepted"));
         });
@@ -483,6 +513,33 @@ public static class SipsConnectEndpoints
     }
 
     private static string? FirstNonEmpty(params string?[] values) => values.FirstOrDefault(x => !string.IsNullOrWhiteSpace(x))?.Trim();
+
+    private static bool IsUniqueConstraintViolation(DbUpdateException exception)
+    {
+        return exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation };
+    }
+
+    private static async Task<PaymentResponse?> TryBuildDuplicatePaymentResponseAsync(
+        GatewayDbContext db,
+        string paymentTxId,
+        string payloadHash,
+        string paymentEndToEndId,
+        CancellationToken cancellationToken)
+    {
+        var duplicatePayment = await db.BillPayments.FirstOrDefaultAsync(
+            x => x.SipsTransactionId == paymentTxId || x.TxId == paymentTxId,
+            cancellationToken);
+        return duplicatePayment is null
+            ? null
+            : BuildDuplicatePaymentResponse(duplicatePayment, paymentTxId, payloadHash, paymentEndToEndId);
+    }
+
+    private static PaymentResponse BuildDuplicatePaymentResponse(BillPayment duplicatePayment, string paymentTxId, string payloadHash, string paymentEndToEndId)
+    {
+        return JsonDefaults.Sha256(duplicatePayment.RawPayloadJson) == payloadHash
+            ? PaymentResponse.Accepted(duplicatePayment.EndToEndId, paymentTxId, "Duplicate payment already processed")
+            : PaymentResponse.Rejected(paymentEndToEndId, paymentTxId, "DUPLICATE_TX_DIFFERENT_PAYLOAD");
+    }
 
     private static Task StoreAttemptAsync(
         GatewayDbContext db,

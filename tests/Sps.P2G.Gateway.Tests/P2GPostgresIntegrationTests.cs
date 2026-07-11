@@ -60,4 +60,63 @@ public sealed class P2GPostgresIntegrationTests : IClassFixture<PostgresP2GWebAp
         Assert.Equal(1, db.BillPayments.Count(x => x.TxId == "TX-PG-001"));
         Assert.True(db.BillEvents.Count(x => x.BillId == setup.BillId) >= 4);
     }
+
+    [Fact]
+    public async Task ConcurrentDuplicatePaymentConfirm_IsIdempotentUnderPostgresConstraints()
+    {
+        var client = _factory.CreateClient();
+        var setup = await P2GFlowTests.CreateAuthorityAccountAndBillAsync(
+            client,
+            invoiceId: "INV-PG-RACE-001",
+            upr: "SRA-TAX-2026-INV-PG-RACE-001");
+
+        var tasks = Enumerable.Range(0, 8)
+            .Select(_ => P2GFlowTests.PostInternalAsync(client, "/api/v1/sips-connect/payments/confirm", new
+            {
+                fromBIC = "BANKBICXXXX",
+                toBIC = "SIPSBICXXXX",
+                categoryPurpose = "C2BBPT",
+                txId = "TX-PG-RACE-001",
+                endToEndId = setup.Upr,
+                amount = 125.00m,
+                currency = "USD",
+                debtorName = "Sender Name",
+                debtorAccount = "9876543210",
+                debtorAccountType = "ACCT",
+                creditorName = "Somali Revenue Authority",
+                creditorAccount = "1234567890",
+                creditorAccountType = "ACCT",
+                remittanceInformation = $"BILL:{setup.Upr}",
+                msgId = "MSG-PG-RACE-001",
+                msgDefIdr = "pacs.008"
+            }))
+            .ToArray();
+
+        using var responses = new CompositeHttpResponseMessage(await Task.WhenAll(tasks));
+        foreach (var response in responses.Items)
+        {
+            response.EnsureSuccessStatusCode();
+            using var json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+            Assert.Equal("ACCP", json.RootElement.GetProperty("status").GetString());
+        }
+
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<GatewayDbContext>();
+        Assert.Equal(1, db.BillPayments.Count(x => x.TxId == "TX-PG-RACE-001"));
+        Assert.Equal(1, db.IdempotencyRecords.Count(x => x.Key == "payment:confirm:TX-PG-RACE-001"));
+        Assert.Equal(2, db.BillEvents.Count(x => x.BillId == setup.BillId && (x.EventType == "PaymentAccepted" || x.EventType == "BillPaid")));
+    }
+
+    private sealed class CompositeHttpResponseMessage(HttpResponseMessage[] items) : IDisposable
+    {
+        public HttpResponseMessage[] Items { get; } = items;
+
+        public void Dispose()
+        {
+            foreach (var item in Items)
+            {
+                item.Dispose();
+            }
+        }
+    }
 }

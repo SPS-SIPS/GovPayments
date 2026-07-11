@@ -25,6 +25,8 @@ namespace Sps.P2G.Gateway.Infrastructure.Database.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.HasSequence("BillEventSequence");
+
             modelBuilder.Entity("Sps.P2G.Gateway.Domain.Authorities.RevenueAccount", b =>
                 {
                     b.Property<Guid>("Id")
