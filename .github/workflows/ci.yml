@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_NOLOGO: "1"
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1"
+  CONFIGURATION: Release
+
+jobs:
+  validate:
+    name: Validate Application
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Show .NET info
+        run: dotnet --info
+
+      - name: Restore tools
+        run: dotnet tool restore
+
+      - name: Restore packages
+        run: dotnet restore Sps.P2G.sln
+
+      - name: Build
+        run: dotnet build Sps.P2G.sln --configuration "$CONFIGURATION" --no-restore
+
+      - name: Test
+        run: >
+          dotnet test Sps.P2G.sln
+          --configuration "$CONFIGURATION"
+          --no-build
+          --no-restore
+          --logger "trx;LogFileName=sps-p2g-tests.trx"
+          --results-directory artifacts/test-results
+
+      - name: Validate Docker Compose
+        run: docker compose config --quiet
+
+      - name: Validate shell scripts
+        run: |
+          for script in security/openbao/scripts/*.sh; do
+            bash -n "$script"
+          done
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: artifacts/test-results
+          if-no-files-found: ignore
+
+  docker-build:
+    name: Build Gateway Image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: validate
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build --pull -t sps-p2g-gateway:${{ github.sha }} .
