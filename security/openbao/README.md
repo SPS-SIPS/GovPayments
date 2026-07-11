@@ -4,7 +4,25 @@ This folder adapts the Helios OpenBao pattern for the SPS P2G Gateway.
 
 OpenBao is used for deployment-grade runtime configuration and secret handling. The gateway can load KV v2 values from OpenBao during startup when `OpenBao__Enabled=true`.
 
-## Start OpenBao
+## One-Command Startup
+
+The root compose stack starts OpenBao, runs an idempotent bootstrap job, and starts the gateway after bootstrap succeeds:
+
+```bash
+docker compose up -d
+```
+
+OpenBao listens on `8200` inside Docker and is exposed on host port `8201` by default. Override the host binding with `OPENBAO_HOST_PORT=8200 docker compose up -d` when needed.
+
+The bootstrap job:
+
+- initializes OpenBao when needed
+- unseals OpenBao when needed
+- enables KV v2, transit, and audit logging
+- writes gateway runtime configuration to `secret/sps-p2g-gateway/runtime`
+- writes the gateway token to `security/openbao/runtime/gateway_token`
+
+## Manual OpenBao Operations
 
 ```bash
 make security-prepare
@@ -13,7 +31,7 @@ make security-up
 
 The project intentionally has one Docker Compose file at the repository root. The OpenBao service mounts its config/data/audit/log paths from this folder.
 
-## Initialize and Unseal
+## Manual Initialize and Unseal
 
 ```bash
 make security-init
@@ -22,7 +40,7 @@ make security-unseal
 
 The init script writes unseal and root-token files under `security/openbao/keys`. Those files are ignored by git and must be protected by operators.
 
-## Bootstrap P2G Policy
+## Manual Bootstrap P2G Policy
 
 ```bash
 make security-bootstrap
@@ -58,8 +76,8 @@ At runtime, the gateway still needs enough non-secret configuration to reach Ope
 
 ```bash
 OpenBao__Enabled=true
-OpenBao__BaseUrl=http://sps-p2g-openbao:8200
-OpenBao__Token=<token-from-bootstrap>
+OpenBao__BaseUrl=http://openbao:8200
+OpenBao__TokenFile=/run/openbao/gateway_token
 OpenBao__KvMount=secret
 OpenBao__SecretPath=sps-p2g-gateway/runtime
 DataProtection__PersistKeysToFileSystemPath=/var/lib/sps-p2g-gateway/data-protection-keys

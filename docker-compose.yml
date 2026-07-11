@@ -21,9 +21,22 @@ services:
     volumes:
       - ./infra/keycloak/realm-sps.json:/opt/keycloak/data/import/realm-sps.json:ro
 
+  openbao-permissions:
+    image: alpine:3.20
+    command: >
+      sh -c "mkdir -p /security/openbao/data /security/openbao/logs /security/openbao/audit /security/openbao/keys /security/openbao/runtime &&
+             chown -R 100:1000 /security/openbao/data /security/openbao/logs /security/openbao/audit &&
+             chmod 770 /security/openbao/data /security/openbao/logs /security/openbao/audit &&
+             chmod 700 /security/openbao/keys /security/openbao/runtime"
+    volumes:
+      - ./security/openbao:/security/openbao
+
   openbao:
     image: openbao/openbao:2.0.0
     container_name: sps-p2g-openbao
+    depends_on:
+      openbao-permissions:
+        condition: service_completed_successfully
     restart: unless-stopped
     cap_drop:
       - ALL
@@ -34,7 +47,7 @@ services:
     security_opt:
       - no-new-privileges:true
     ports:
-      - "8200:8200"
+      - "${OPENBAO_HOST_PORT:-8201}:8200"
     environment:
       BAO_ADDR: "http://127.0.0.1:8200"
     volumes:
@@ -55,32 +68,55 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  openbao-bootstrap:
+    image: openbao/openbao:2.0.0
+    depends_on:
+      openbao:
+        condition: service_healthy
+    environment:
+      BAO_ADDR: http://openbao:8200
+      P2G_CONNECTION_STRING: Host=postgres;Database=sps_p2g_gateway;Username=postgres;Password=postgres
+      P2G_DESCRIPTOR_HMAC_SECRET: development-descriptor-secret-change-me
+      P2G_INTERNAL_API_KEY: development-internal-key-change-me
+      P2G_KEYCLOAK_ENABLED: "true"
+      P2G_KEYCLOAK_AUTHORITY: http://keycloak:8080/realms/sps
+      P2G_KEYCLOAK_AUDIENCE: sps-p2g-gateway
+      P2G_KEYCLOAK_REQUIRE_HTTPS_METADATA: "false"
+      P2G_AUTH_ALLOW_AUTHORITY_API_KEY_FALLBACK: "true"
+      P2G_AUTH_ALLOW_SIPS_CONNECT_INTERNAL_KEY_FALLBACK: "true"
+      P2G_DATA_PROTECTION_KEYS_PATH: /var/lib/sps-p2g-gateway/data-protection-keys
+    volumes:
+      - ./security/openbao:/security/openbao
+      - ./security/openbao/scripts/bao-compose-bootstrap.sh:/usr/local/bin/bao-compose-bootstrap.sh:ro
+    command: sh /usr/local/bin/bao-compose-bootstrap.sh
+    restart: "no"
+
   gateway:
     build:
       context: .
       dockerfile: Dockerfile
     depends_on:
-      - postgres
-      - keycloak
+      postgres:
+        condition: service_started
+      keycloak:
+        condition: service_started
+      openbao-bootstrap:
+        condition: service_completed_successfully
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__P2G: Host=postgres;Database=sps_p2g_gateway;Username=postgres;Password=postgres
+      OpenBao__Enabled: "true"
+      OpenBao__BaseUrl: http://openbao:8200
+      OpenBao__TokenFile: /run/openbao/gateway_token
+      OpenBao__KvMount: secret
+      OpenBao__SecretPath: sps-p2g-gateway/runtime
       Database__RunMigrationsOnStartup: "true"
-      DataProtection__PersistKeysToFileSystemPath: /var/lib/sps-p2g-gateway/data-protection-keys
-      P2G__DescriptorHmacSecret: development-descriptor-secret-change-me
-      P2G__InternalApiKey: development-internal-key-change-me
       Callbacks__Enabled: "true"
-      Keycloak__Enabled: "true"
-      Keycloak__Authority: http://keycloak:8080/realms/sps
-      Keycloak__Audience: sps-p2g-gateway
-      Keycloak__RequireHttpsMetadata: "false"
-      Auth__AllowAuthorityApiKeyFallback: "true"
-      Auth__AllowSipsConnectInternalKeyFallback: "true"
     ports:
-      - "8081:8080"
+      - "${GATEWAY_HOST_PORT:-18081}:8080"
     volumes:
       - p2g-data-protection-keys:/var/lib/sps-p2g-gateway/data-protection-keys
+      - ./security/openbao/runtime:/run/openbao:ro
 
 volumes:
   p2g-postgres:

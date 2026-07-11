@@ -13,14 +13,15 @@ public static class OpenBaoConfigurationLoader
             return;
         }
 
-        ValidateOptions(options);
+        var token = ResolveToken(options);
+        ValidateOptions(options, token);
 
         using var httpClient = new HttpClient
         {
             BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/"),
             Timeout = TimeSpan.FromSeconds(Math.Clamp(options.RequestTimeoutSeconds, 1, 60))
         };
-        httpClient.DefaultRequestHeaders.Add("X-Vault-Token", options.Token);
+        httpClient.DefaultRequestHeaders.Add("X-Vault-Token", token);
         httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
         var requestPath = $"v1/{TrimSlashes(options.KvMount)}/data/{TrimSlashes(options.SecretPath)}";
@@ -88,16 +89,31 @@ public static class OpenBaoConfigurationLoader
         }
     }
 
-    private static void ValidateOptions(OpenBaoOptions options)
+    public static string ResolveToken(OpenBaoOptions options)
+    {
+        if (!string.IsNullOrWhiteSpace(options.Token))
+        {
+            return options.Token.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(options.TokenFile) && File.Exists(options.TokenFile))
+        {
+            return File.ReadAllText(options.TokenFile).Trim();
+        }
+
+        return "";
+    }
+
+    private static void ValidateOptions(OpenBaoOptions options, string token)
     {
         if (string.IsNullOrWhiteSpace(options.BaseUrl))
         {
             throw new InvalidOperationException("OpenBao:BaseUrl is required when OpenBao is enabled.");
         }
 
-        if (string.IsNullOrWhiteSpace(options.Token))
+        if (string.IsNullOrWhiteSpace(token))
         {
-            throw new InvalidOperationException("OpenBao:Token is required when OpenBao is enabled.");
+            throw new InvalidOperationException("OpenBao:Token or OpenBao:TokenFile is required when OpenBao is enabled.");
         }
 
         if (string.IsNullOrWhiteSpace(options.KvMount))

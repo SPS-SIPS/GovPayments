@@ -48,16 +48,22 @@ make deps-up
 Or run the full local stack, including the gateway:
 
 ```bash
-make stack-up
+docker compose up -d
 ```
+
+The full compose stack starts Postgres, Keycloak, OpenBao, the OpenBao bootstrap job, and the gateway. The bootstrap job initializes/unseals OpenBao when needed, writes runtime configuration to KV, and writes a gateway token under `security/openbao/runtime`.
 
 The gateway is exposed at:
 
 ```text
-http://localhost:8081
-http://localhost:8081/openapi/v1.json
-http://localhost:8081/health/ready
+http://localhost:18081
+http://localhost:18081/openapi/v1.json
+http://localhost:18081/health/ready
 ```
+
+Override the gateway binding with `GATEWAY_HOST_PORT=8081 docker compose up -d` when that port is available and preferred.
+
+OpenBao is exposed to the host at `http://localhost:8201` by default for local operator access. Override it with `OPENBAO_HOST_PORT=8200 docker compose up -d` if that port is available and preferred.
 
 Configure Postgres and service secrets with environment variables or `appsettings.json`:
 
@@ -109,6 +115,14 @@ The generator writes `artifacts/openapi/openapi.json` and `artifacts/openapi/ope
 
 Production deployments load runtime secrets from OpenBao KV v2 before startup validation runs. The OpenBao security bundle lives under `security/openbao` and is adapted from the Helios OpenBao pattern with SPS P2G service names.
 
+The local/UAT compose stack bootstraps OpenBao automatically:
+
+```bash
+docker compose up -d
+```
+
+Manual OpenBao commands remain available for recovery and administration:
+
 ```bash
 make security-prepare
 make security-up
@@ -132,8 +146,8 @@ At runtime, the gateway only needs enough environment configuration to reach Ope
 
 ```bash
 OpenBao__Enabled=true
-OpenBao__BaseUrl=http://sps-p2g-openbao:8200
-OpenBao__Token={token-from-security-bootstrap}
+OpenBao__BaseUrl=http://openbao:8200
+OpenBao__TokenFile=/run/openbao/gateway_token
 OpenBao__KvMount=secret
 OpenBao__SecretPath=sps-p2g-gateway/runtime
 ```

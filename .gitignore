@@ -5,6 +5,7 @@ security/openbao/audit/
 security/openbao/data/
 security/openbao/keys/
 security/openbao/logs/
+security/openbao/runtime/
 
 **/bin/
 **/obj/

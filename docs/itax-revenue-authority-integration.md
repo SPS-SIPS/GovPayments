@@ -27,7 +27,7 @@ Use the environment-specific gateway base URL provided by SPS.
 Local development defaults:
 
 ```text
-http://localhost:8081
+http://localhost:18081
 ```
 
 All Revenue Authority endpoints are under:

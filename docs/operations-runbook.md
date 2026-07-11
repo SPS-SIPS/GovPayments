@@ -19,7 +19,15 @@ Readiness checks database connectivity, pending callback backlog, and dead-lette
 
 OpenBao is the main runtime security and secrets service for this product. The project keeps OpenBao material under `security/openbao` and uses the root `docker-compose.yml`.
 
-Start and bootstrap:
+Start the full stack:
+
+```bash
+docker compose up -d
+```
+
+The compose stack initializes/unseals OpenBao when needed, writes runtime configuration to KV, writes the gateway token to `security/openbao/runtime/gateway_token`, and starts the gateway after bootstrap succeeds.
+
+Manual recovery commands:
 
 ```bash
 make security-prepare

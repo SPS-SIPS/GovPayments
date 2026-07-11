@@ -1,10 +1,8 @@
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 
-COPY Sps.P2G.sln ./
 COPY src/Sps.P2G.Gateway/Sps.P2G.Gateway.csproj src/Sps.P2G.Gateway/
-COPY tests/Sps.P2G.Gateway.Tests/Sps.P2G.Gateway.Tests.csproj tests/Sps.P2G.Gateway.Tests/
-RUN dotnet restore Sps.P2G.sln
+RUN dotnet restore src/Sps.P2G.Gateway/Sps.P2G.Gateway.csproj
 
 COPY . .
 RUN dotnet publish src/Sps.P2G.Gateway/Sps.P2G.Gateway.csproj \

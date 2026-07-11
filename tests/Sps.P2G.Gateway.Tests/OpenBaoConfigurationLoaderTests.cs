@@ -30,4 +30,25 @@ public sealed class OpenBaoConfigurationLoaderTests
         Assert.Equal("True", values["Keycloak:RequireHttpsMetadata"]);
         Assert.Equal("50", values["Callbacks:BatchSize"]);
     }
+
+    [Fact]
+    public void ResolveToken_ReadsTokenFileWhenInlineTokenIsEmpty()
+    {
+        var tokenFile = Path.Combine(Path.GetTempPath(), $"openbao-token-{Guid.NewGuid():N}");
+        try
+        {
+            File.WriteAllText(tokenFile, " file-token-value \n");
+
+            var token = OpenBaoConfigurationLoader.ResolveToken(new OpenBaoOptions
+            {
+                TokenFile = tokenFile
+            });
+
+            Assert.Equal("file-token-value", token);
+        }
+        finally
+        {
+            File.Delete(tokenFile);
+        }
+    }
 }

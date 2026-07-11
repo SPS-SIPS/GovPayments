@@ -120,9 +120,9 @@ public static class ProductionConfigurationValidator
                 errors.Add("OpenBao:BaseUrl is required when OpenBao is enabled.");
             }
 
-            if (string.IsNullOrWhiteSpace(openBao.Token))
+            if (string.IsNullOrWhiteSpace(openBao.Token) && string.IsNullOrWhiteSpace(openBao.TokenFile))
             {
-                errors.Add("OpenBao:Token is required when OpenBao is enabled.");
+                errors.Add("OpenBao:Token or OpenBao:TokenFile is required when OpenBao is enabled.");
             }
 
             if (string.IsNullOrWhiteSpace(openBao.KvMount))
