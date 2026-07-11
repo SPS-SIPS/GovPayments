@@ -17,6 +17,12 @@ docs/
 security/
   production.env.example
   openbao/
+production/
+  docker-compose.yml
+  .env.example
+  openbao/
+  postgres/
+  gateway/
 ```
 
 The iTax Revenue Authority integration guide is available at `docs/itax-revenue-authority-integration.md`.
@@ -153,6 +159,19 @@ OpenBao__SecretPath=sps-p2g-gateway/runtime
 ```
 
 See `security/openbao/README.md` and `security/production.env.example` for the complete deployment shape.
+
+## Production Compose
+
+The `production/` directory contains the host deployment bundle that consumes the published GitHub Container Registry image:
+
+```bash
+cd production
+cp .env.example .env
+docker compose pull
+docker compose up -d
+```
+
+The gateway image defaults to `ghcr.io/hanadderia/sps-p2g-gateway:latest`. Set `GATEWAY_IMAGE_TAG` in `production/.env` to deploy a pinned commit SHA. See `production/README.md` for required secrets, directories, and runtime checks.
 
 ## Auth Headers
 

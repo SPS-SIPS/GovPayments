@@ -19,6 +19,17 @@ Readiness checks database connectivity, pending callback backlog, and dead-lette
 
 OpenBao is the main runtime security and secrets service for this product. The project keeps OpenBao material under `security/openbao` and uses the root `docker-compose.yml`.
 
+For production/UAT hosts that should run the published container image, use the `production/` bundle:
+
+```bash
+cd production
+cp .env.example .env
+docker compose pull
+docker compose up -d
+```
+
+The production bundle pulls `ghcr.io/hanadderia/sps-p2g-gateway:${GATEWAY_IMAGE_TAG:-latest}` and stores generated runtime data under `production/openbao`, `production/postgres`, and `production/gateway`. The OpenBao bootstrap job writes runtime KV values from `production/.env` each time it runs, so treat `.env` as the source of truth for those seeded settings.
+
 Start the full stack:
 
 ```bash

@@ -7,6 +7,22 @@ security/openbao/keys/
 security/openbao/logs/
 security/openbao/runtime/
 
+production/.env
+production/openbao/audit/*
+production/openbao/data/*
+production/openbao/keys/*
+production/openbao/logs/*
+production/openbao/runtime/*
+production/postgres/data/*
+production/gateway/data-protection-keys/*
+!production/openbao/audit/.gitkeep
+!production/openbao/data/.gitkeep
+!production/openbao/keys/.gitkeep
+!production/openbao/logs/.gitkeep
+!production/openbao/runtime/.gitkeep
+!production/postgres/data/.gitkeep
+!production/gateway/data-protection-keys/.gitkeep
+
 **/bin/
 **/obj/
 

@@ -81,8 +81,15 @@ bao kv put "$KV_MOUNT/$SECRET_PATH" \
     Keycloak__Authority="${P2G_KEYCLOAK_AUTHORITY:-http://keycloak:8080/realms/sps}" \
     Keycloak__Audience="${P2G_KEYCLOAK_AUDIENCE:-sps-p2g-gateway}" \
     Keycloak__RequireHttpsMetadata="${P2G_KEYCLOAK_REQUIRE_HTTPS_METADATA:-false}" \
+    Keycloak__RevenueAuthorityRole="${P2G_KEYCLOAK_REVENUE_AUTHORITY_ROLE:-p2g-authority}" \
+    Keycloak__SipsConnectRole="${P2G_KEYCLOAK_SIPS_CONNECT_ROLE:-p2g-sips-connect}" \
+    Keycloak__DashboardRole="${P2G_KEYCLOAK_DASHBOARD_ROLE:-p2g-dashboard}" \
+    Keycloak__ConfigurationAdminRole="${P2G_KEYCLOAK_CONFIGURATION_ADMIN_ROLE:-p2g-configuration-admin}" \
+    Keycloak__SipsConnectClientId="${P2G_KEYCLOAK_SIPS_CONNECT_CLIENT_ID:-sips-connect-p2g}" \
     Auth__AllowAuthorityApiKeyFallback="${P2G_AUTH_ALLOW_AUTHORITY_API_KEY_FALLBACK:-true}" \
     Auth__AllowSipsConnectInternalKeyFallback="${P2G_AUTH_ALLOW_SIPS_CONNECT_INTERNAL_KEY_FALLBACK:-true}" \
+    CallbackSecurity__RequireHttps="${P2G_CALLBACK_SECURITY_REQUIRE_HTTPS:-true}" \
+    CallbackSecurity__AllowPrivateNetworkTargets="${P2G_CALLBACK_SECURITY_ALLOW_PRIVATE_NETWORK_TARGETS:-false}" \
     DataProtection__PersistKeysToFileSystemPath="${P2G_DATA_PROTECTION_KEYS_PATH:-/var/lib/sps-p2g-gateway/data-protection-keys}" \
     >/dev/null
 

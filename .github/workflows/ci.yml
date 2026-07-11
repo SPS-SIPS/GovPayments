@@ -61,11 +61,15 @@ jobs:
       - name: Validate Docker Compose
         run: docker compose config --quiet
 
+      - name: Validate production Docker Compose
+        run: docker compose --env-file production/.env.example -f production/docker-compose.yml config --quiet
+
       - name: Validate shell scripts
         run: |
           for script in security/openbao/scripts/*.sh; do
             bash -n "$script"
           done
+          bash -n production/openbao/scripts/bao-compose-bootstrap.sh
 
       - name: Upload test results
         if: always()
