@@ -71,6 +71,30 @@ public sealed class P2GFlowTests : IClassFixture<P2GWebApplicationFactory>
     }
 
     [Fact]
+    public async Task SipsVerify_WithAcctTypeVerifiesRevenueAccount()
+    {
+        var client = _factory.CreateClient();
+        await CreateAuthorityAccountAndBillAsync(client, invoiceId: "INV-ACCT-VERIFY", upr: "SRA-TAX-2026-INV-ACCT-VERIFY");
+
+        using var verifyResponse = await PostInternalAsync(client, "/api/v1/sips-connect/verify", new
+        {
+            accountNo = "1234567890",
+            type = "ACCT",
+            agent = "SENDBICXXXX",
+            verificationId = "VER-ACCT-001"
+        });
+
+        verifyResponse.EnsureSuccessStatusCode();
+        using var verifyJson = await JsonDocument.ParseAsync(await verifyResponse.Content.ReadAsStreamAsync());
+        Assert.True(verifyJson.RootElement.GetProperty("isVerified").GetBoolean());
+        Assert.Equal("Account verified", verifyJson.RootElement.GetProperty("message").GetString());
+        Assert.Equal("1234567890", verifyJson.RootElement.GetProperty("accountNo").GetString());
+        Assert.Equal("ACCT", verifyJson.RootElement.GetProperty("accountType").GetString());
+        Assert.Equal("Somali Revenue Authority", verifyJson.RootElement.GetProperty("name").GetString());
+        Assert.Equal("USD", verifyJson.RootElement.GetProperty("currency").GetString());
+    }
+
+    [Fact]
     public async Task PaymentConfirm_RejectsAmountMismatchAndLeavesBillFetched()
     {
         var client = _factory.CreateClient();

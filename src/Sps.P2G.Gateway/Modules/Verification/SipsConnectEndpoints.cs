@@ -50,84 +50,39 @@ public static class SipsConnectEndpoints
                 return Results.Ok(VerificationResponse.Rejected(contractError));
             }
 
-            var lookup = FirstNonEmpty(request.InvoiceIdOrUpr, request.AccountNo);
-            if (lookup is null)
-            {
-                return Results.Ok(VerificationResponse.Rejected("NOT_FOUND"));
-            }
-
-            var bill = await FindBillAsync(db, lookup, cancellationToken);
-            if (bill is null)
-            {
-                return Results.Ok(VerificationResponse.Rejected("NOT_FOUND"));
-            }
-
-            var rejectReason = GetNonPayableReason(bill, clock.UtcNow);
-            if (rejectReason is not null)
-            {
-                return Results.Ok(VerificationResponse.Rejected(rejectReason));
-            }
-
-            var account = await db.RevenueAccounts.FirstAsync(x => x.Id == bill.RevenueAccountId, cancellationToken);
-            var descriptor = descriptorService.Build(bill, account);
             var verificationId = FirstNonEmpty(request.VerificationRequestId, request.VerificationId) ?? "";
-            var now = clock.UtcNow;
-
-            db.BillVerificationSnapshots.Add(new BillVerificationSnapshot
+            var invoiceLookup = FirstNonEmpty(request.InvoiceIdOrUpr);
+            if (invoiceLookup is not null)
             {
-                Id = Guid.NewGuid(),
-                BillId = bill.Id,
-                AuthorityId = bill.AuthorityId,
-                VerificationRequestId = verificationId,
-                PayerBankCode = request.PayerBankCode ?? request.Agent ?? "",
-                PayerChannel = request.PayerChannel ?? "",
-                Descriptor = descriptor.Descriptor,
-                DescriptorVersion = descriptor.Version,
-                DescriptorHmac = descriptor.FullHmac,
-                DescriptorKeyVersion = descriptor.KeyVersion,
-                CreditorClearingId = account.AccountNumber,
-                CreditorClearingType = account.ClearingType,
-                CreditorName = account.AccountName,
-                Amount = bill.Amount,
-                Currency = bill.Currency,
-                ExpiresAt = bill.ExpiresAt,
-                CreatedAt = now
-            });
-
-            if (bill.StatusProjection == BillStatuses.Available)
-            {
-                bill.StatusProjection = BillStatuses.Fetched;
-                bill.UpdatedAt = now;
+                return await VerifyInvoiceAsync(request, invoiceLookup, verificationId, db, descriptorService, hashChain, clock, cancellationToken);
             }
 
-            var fetchedEvent = await hashChain.AppendAsync(db, bill, BillEventTypes.BillFetched, new
+            var accountNo = FirstNonEmpty(request.AccountNo);
+            if (accountNo is null)
             {
-                bill.Id,
-                bill.UPR,
-                verificationId,
-                payerBankCode = request.PayerBankCode ?? request.Agent
-            }, "SipsConnect", request.Agent ?? "", "SipsConnect", verificationId, cancellationToken);
+                return Results.Ok(VerificationResponse.Rejected("NOT_FOUND"));
+            }
 
-            await hashChain.AppendAsync(db, bill, BillEventTypes.VerificationReturned, new
+            var accountType = FirstNonEmpty(request.Type, request.AccountType);
+            if (string.Equals(accountType, "ACCT", StringComparison.OrdinalIgnoreCase))
             {
-                bill.Id,
-                bill.UPR,
-                descriptor = descriptor.Descriptor,
-                account.AccountNumber,
-                account.ClearingType
-            }, "SipsConnect", request.Agent ?? "", "SipsConnect", verificationId, cancellationToken);
+                var revenueAccount = await FindRevenueAccountAsync(db, accountNo, "ACCT", cancellationToken);
+                if (revenueAccount is null)
+                {
+                    return Results.Ok(VerificationResponse.Rejected("ACCOUNT_NOT_FOUND"));
+                }
 
-            await QueueCallbacksAsync(db, bill.AuthorityId, fetchedEvent, clock, cancellationToken);
-            await db.SaveChangesAsync(cancellationToken);
+                return Results.Ok(new VerificationResponse(
+                    true,
+                    "Account verified",
+                    revenueAccount.AccountNumber,
+                    revenueAccount.ClearingType,
+                    revenueAccount.AccountName,
+                    FirstNonEmpty(revenueAccount.MdaName, revenueAccount.ServiceName) ?? "",
+                    revenueAccount.Currency));
+            }
 
-            return Results.Ok(new VerificationResponse(
-                true,
-                "Invoice verified",
-                account.AccountNumber,
-                account.ClearingType,
-                descriptor.Descriptor,
-                account.AccountName,
-                bill.Currency));
+            return await VerifyInvoiceAsync(request, accountNo, verificationId, db, descriptorService, hashChain, clock, cancellationToken);
         });
 
         group.MapPost("/payments/confirm", async (
@@ -437,6 +392,89 @@ public static class SipsConnectEndpoints
         return null;
     }
 
+    private static async Task<IResult> VerifyInvoiceAsync(
+        VerificationRequest request,
+        string lookup,
+        string verificationId,
+        GatewayDbContext db,
+        IDescriptorService descriptorService,
+        IHashChainService hashChain,
+        IClock clock,
+        CancellationToken cancellationToken)
+    {
+        var bill = await FindBillAsync(db, lookup, cancellationToken);
+        if (bill is null)
+        {
+            return Results.Ok(VerificationResponse.Rejected("NOT_FOUND"));
+        }
+
+        var rejectReason = GetNonPayableReason(bill, clock.UtcNow);
+        if (rejectReason is not null)
+        {
+            return Results.Ok(VerificationResponse.Rejected(rejectReason));
+        }
+
+        var account = await db.RevenueAccounts.FirstAsync(x => x.Id == bill.RevenueAccountId, cancellationToken);
+        var descriptor = descriptorService.Build(bill, account);
+        var now = clock.UtcNow;
+
+        db.BillVerificationSnapshots.Add(new BillVerificationSnapshot
+        {
+            Id = Guid.NewGuid(),
+            BillId = bill.Id,
+            AuthorityId = bill.AuthorityId,
+            VerificationRequestId = verificationId,
+            PayerBankCode = request.PayerBankCode ?? request.Agent ?? "",
+            PayerChannel = request.PayerChannel ?? "",
+            Descriptor = descriptor.Descriptor,
+            DescriptorVersion = descriptor.Version,
+            DescriptorHmac = descriptor.FullHmac,
+            DescriptorKeyVersion = descriptor.KeyVersion,
+            CreditorClearingId = account.AccountNumber,
+            CreditorClearingType = account.ClearingType,
+            CreditorName = account.AccountName,
+            Amount = bill.Amount,
+            Currency = bill.Currency,
+            ExpiresAt = bill.ExpiresAt,
+            CreatedAt = now
+        });
+
+        if (bill.StatusProjection == BillStatuses.Available)
+        {
+            bill.StatusProjection = BillStatuses.Fetched;
+            bill.UpdatedAt = now;
+        }
+
+        var fetchedEvent = await hashChain.AppendAsync(db, bill, BillEventTypes.BillFetched, new
+        {
+            bill.Id,
+            bill.UPR,
+            verificationId,
+            payerBankCode = request.PayerBankCode ?? request.Agent
+        }, "SipsConnect", request.Agent ?? "", "SipsConnect", verificationId, cancellationToken);
+
+        await hashChain.AppendAsync(db, bill, BillEventTypes.VerificationReturned, new
+        {
+            bill.Id,
+            bill.UPR,
+            descriptor = descriptor.Descriptor,
+            account.AccountNumber,
+            account.ClearingType
+        }, "SipsConnect", request.Agent ?? "", "SipsConnect", verificationId, cancellationToken);
+
+        await QueueCallbacksAsync(db, bill.AuthorityId, fetchedEvent, clock, cancellationToken);
+        await db.SaveChangesAsync(cancellationToken);
+
+        return Results.Ok(new VerificationResponse(
+            true,
+            "Invoice verified",
+            account.AccountNumber,
+            account.ClearingType,
+            descriptor.Descriptor,
+            account.AccountName,
+            bill.Currency));
+    }
+
     private static string? ValidatePaymentContract(PaymentRequest request, string? txId)
     {
         if (txId is null) return "MISSING_TX_ID";
@@ -499,6 +537,24 @@ public static class SipsConnectEndpoints
         return await db.Bills.FirstOrDefaultAsync(
             x => x.UPR == lookup || x.ExternalInvoiceId == lookup || (billByGuid && x.Id == billId),
             cancellationToken);
+    }
+
+    private static async Task<Domain.Authorities.RevenueAccount?> FindRevenueAccountAsync(
+        GatewayDbContext db,
+        string accountNo,
+        string accountType,
+        CancellationToken cancellationToken)
+    {
+        var normalizedAccountNo = accountNo.Trim();
+        var normalizedAccountType = accountType.Trim().ToUpperInvariant();
+        return await db.RevenueAccounts
+            .Where(x => x.AccountNumber == normalizedAccountNo &&
+                        x.ClearingType == normalizedAccountType &&
+                        x.Status == "Active")
+            .OrderByDescending(x => x.IsDefault)
+            .ThenBy(x => x.MdaCode)
+            .ThenBy(x => x.ServiceCode)
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
     private static string? ParseBillReference(string? remittanceInformation)
@@ -625,6 +681,7 @@ public static class SipsConnectEndpoints
 public sealed record VerificationRequest(
     string? AccountNo,
     string? AccountType,
+    string? Type,
     string? Agent,
     string? VerificationId,
     string? VerificationRequestId,
