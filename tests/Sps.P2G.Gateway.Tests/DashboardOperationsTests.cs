@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using Sps.P2G.Gateway.Domain.Authorities;
 using Sps.P2G.Gateway.Domain.Bills;
 using Sps.P2G.Gateway.Domain.Callbacks;
 using Sps.P2G.Gateway.Domain.Payments;
@@ -125,5 +126,78 @@ public sealed class DashboardOperationsTests : IClassFixture<P2GWebApplicationFa
         var reason = Assert.Single(json.RootElement.GetProperty("payments").GetProperty("topRejectReasonsLast24Hours").EnumerateArray());
         Assert.Equal("AMOUNT_MISMATCH", reason.GetProperty("reason").GetString());
         Assert.Equal(1, reason.GetProperty("count").GetInt32());
+    }
+
+    [Fact]
+    public async Task Summary_CountsBillsWhoseExpiryTimeHasPassed()
+    {
+        var now = DateTimeOffset.UtcNow;
+        await using (var scope = _factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<GatewayDbContext>();
+            db.Bills.Add(new Bill
+            {
+                Id = Guid.NewGuid(),
+                AuthorityId = Guid.NewGuid(),
+                ExternalInvoiceId = $"INV-EXPIRED-{Guid.NewGuid():N}",
+                UPR = $"SRA-TAX-2026-EXPIRED-{Guid.NewGuid():N}",
+                MdaCode = "SRA",
+                ServiceCode = "TAX",
+                RevenueCode = "TINCOME",
+                TaxpayerReference = "TIN8891",
+                PayerDisplayName = "Abdi Mohamed",
+                Description = "Income Tax Payment",
+                Amount = 125m,
+                Currency = "USD",
+                ExpiresAt = now.AddMinutes(-5),
+                StatusProjection = BillStatuses.Available,
+                CreatedAt = now.AddDays(-1),
+                UpdatedAt = now.AddDays(-1),
+                CreatedPayloadJson = "{}",
+                PayloadHash = "payload",
+                RecordHash = "record"
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var client = _factory.CreateClient();
+        using var response = await client.GetAsync("/api/v1/dashboard/summary");
+
+        response.EnsureSuccessStatusCode();
+        using var json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+        Assert.True(json.RootElement.GetProperty("expiredBills").GetInt32() >= 1);
+    }
+
+    [Fact]
+    public async Task Authorities_ReturnsRegisteredAuthorities()
+    {
+        var code = $"AUTH{Guid.NewGuid():N}"[..12].ToUpperInvariant();
+        await using (var scope = _factory.Services.CreateAsyncScope())
+        {
+            var now = DateTimeOffset.UtcNow;
+            var db = scope.ServiceProvider.GetRequiredService<GatewayDbContext>();
+            db.RevenueAuthorities.Add(new RevenueAuthority
+            {
+                Id = Guid.NewGuid(),
+                Code = code,
+                Name = "Dashboard Listed Authority",
+                Status = "Active",
+                ApiKeyHash = "hidden",
+                CreatedAt = now,
+                UpdatedAt = now
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var client = _factory.CreateClient();
+        using var response = await client.GetAsync($"/api/v1/dashboard/authorities?search={code}");
+
+        response.EnsureSuccessStatusCode();
+        using var json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+        var authority = Assert.Single(json.RootElement.GetProperty("items").EnumerateArray());
+        Assert.Equal(code, authority.GetProperty("code").GetString());
+        Assert.Equal("Dashboard Listed Authority", authority.GetProperty("name").GetString());
+        Assert.False(authority.TryGetProperty("apiKey", out _));
+        Assert.False(authority.TryGetProperty("apiKeyHash", out _));
     }
 }

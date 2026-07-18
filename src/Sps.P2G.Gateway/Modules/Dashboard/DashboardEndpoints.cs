@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
 using System.Text;
+using Sps.P2G.Gateway.Domain.Authorities;
 using Sps.P2G.Gateway.Domain.Bills;
 using Sps.P2G.Gateway.Infrastructure.Database;
 using Sps.P2G.Gateway.Infrastructure.RateLimiting;
@@ -44,19 +45,61 @@ public static class DashboardEndpoints
             return Results.Ok(new { page, pageSize, total, items });
         });
 
-        group.MapGet("/summary", async (GatewayDbContext db, CancellationToken cancellationToken) =>
+        group.MapGet("/authorities", async (
+            GatewayDbContext db,
+            string? status,
+            string? search,
+            int? page,
+            int? pageSize,
+            CancellationToken cancellationToken) =>
+        {
+            var normalizedPage = page is null or <= 0 ? 1 : page.Value;
+            var normalizedPageSize = pageSize is null or <= 0 or > 200 ? 50 : pageSize.Value;
+            var query = db.RevenueAuthorities.AsQueryable();
+            if (!string.IsNullOrWhiteSpace(status))
+            {
+                query = query.Where(x => x.Status == status.Trim());
+            }
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var searchText = search.Trim().ToUpperInvariant();
+                query = query.Where(x => x.Code.Contains(searchText) || x.Name.ToUpper().Contains(searchText));
+            }
+
+            var total = await query.CountAsync(cancellationToken);
+            var items = await query
+                .OrderBy(x => x.Code)
+                .Skip((normalizedPage - 1) * normalizedPageSize)
+                .Take(normalizedPageSize)
+                .Select(x => ProjectAuthority(x))
+                .ToListAsync(cancellationToken);
+
+            return Results.Ok(new { page = normalizedPage, pageSize = normalizedPageSize, total, items });
+        });
+
+        group.MapGet("/summary", async (GatewayDbContext db, IClock clock, CancellationToken cancellationToken) =>
         {
             var bills = db.Bills;
             var totalBills = await bills.CountAsync(cancellationToken);
             var paidBills = await bills.CountAsync(x => x.StatusProjection == BillStatuses.Paid, cancellationToken);
             var currency = await bills.Select(x => x.Currency).FirstOrDefaultAsync(cancellationToken) ?? "USD";
+            var now = clock.UtcNow;
             return Results.Ok(new
             {
                 totalBills,
                 availableBills = await bills.CountAsync(x => x.StatusProjection == BillStatuses.Available, cancellationToken),
                 fetchedBills = await bills.CountAsync(x => x.StatusProjection == BillStatuses.Fetched, cancellationToken),
                 paidBills,
-                expiredBills = await bills.CountAsync(x => x.StatusProjection == BillStatuses.Expired, cancellationToken),
+                expiredBills = await bills.CountAsync(x =>
+                    x.StatusProjection == BillStatuses.Expired ||
+                    (x.ExpiresAt <= now &&
+                     x.StatusProjection != BillStatuses.Paid &&
+                     x.StatusProjection != BillStatuses.Cancelled &&
+                     x.StatusProjection != BillStatuses.Voided &&
+                     x.StatusProjection != BillStatuses.Reversed &&
+                     x.StatusProjection != BillStatuses.PartiallyReversed),
+                    cancellationToken),
                 cancelledBills = await bills.CountAsync(x => x.StatusProjection == BillStatuses.Cancelled, cancellationToken),
                 voidedBills = await bills.CountAsync(x => x.StatusProjection == BillStatuses.Voided, cancellationToken),
                 reversedBills = await bills.CountAsync(x => x.StatusProjection == BillStatuses.Reversed, cancellationToken),
@@ -230,6 +273,16 @@ public static class DashboardEndpoints
 
         return app;
     }
+
+    private static object ProjectAuthority(RevenueAuthority authority) => new
+    {
+        authority.Id,
+        authority.Code,
+        authority.Name,
+        authority.Status,
+        authority.CreatedAt,
+        authority.UpdatedAt
+    };
 
     private static async Task<object> CreateBillsFromDashboardAsync(
         Domain.Authorities.RevenueAuthority authority,
