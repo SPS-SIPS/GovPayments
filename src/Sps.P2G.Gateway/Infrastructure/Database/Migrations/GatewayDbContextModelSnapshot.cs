@@ -57,7 +57,8 @@ namespace Sps.P2G.Gateway.Infrastructure.Database.Migrations
 
                     b.Property<string>("ClearingType")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -105,6 +106,10 @@ namespace Sps.P2G.Gateway.Infrastructure.Database.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("AuthorityId", "MdaCode", "ServiceCode", "IsDefault");
+
+                    b.HasIndex("AuthorityId", "AccountNumber", "ClearingType")
+                        .IsUnique()
+                        .HasFilter("\"Status\" = 'Active'");
 
                     b.ToTable("RevenueAccounts");
                 });
