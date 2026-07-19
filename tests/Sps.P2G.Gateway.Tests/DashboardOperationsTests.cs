@@ -129,9 +129,10 @@ public sealed class DashboardOperationsTests : IClassFixture<P2GWebApplicationFa
     }
 
     [Fact]
-    public async Task Summary_CountsBillsWhoseExpiryTimeHasPassed()
+    public async Task DashboardBillsAndSummaryUseEffectiveExpiredStatus()
     {
         var now = DateTimeOffset.UtcNow;
+        var externalInvoiceId = $"INV-EXPIRED-{Guid.NewGuid():N}";
         await using (var scope = _factory.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<GatewayDbContext>();
@@ -139,7 +140,7 @@ public sealed class DashboardOperationsTests : IClassFixture<P2GWebApplicationFa
             {
                 Id = Guid.NewGuid(),
                 AuthorityId = Guid.NewGuid(),
-                ExternalInvoiceId = $"INV-EXPIRED-{Guid.NewGuid():N}",
+                ExternalInvoiceId = externalInvoiceId,
                 UPR = $"SRA-TAX-2026-EXPIRED-{Guid.NewGuid():N}",
                 MdaCode = "SRA",
                 ServiceCode = "TAX",
@@ -166,6 +167,18 @@ public sealed class DashboardOperationsTests : IClassFixture<P2GWebApplicationFa
         response.EnsureSuccessStatusCode();
         using var json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
         Assert.True(json.RootElement.GetProperty("expiredBills").GetInt32() >= 1);
+        Assert.Equal(0, json.RootElement.GetProperty("availableBills").GetInt32());
+
+        using var billListResponse = await client.GetAsync($"/api/v1/dashboard/bills?externalInvoiceId={externalInvoiceId}");
+        billListResponse.EnsureSuccessStatusCode();
+        using var billListJson = await JsonDocument.ParseAsync(await billListResponse.Content.ReadAsStreamAsync());
+        var bill = Assert.Single(billListJson.RootElement.GetProperty("items").EnumerateArray());
+        Assert.Equal("Expired", bill.GetProperty("status").GetString());
+
+        using var availableListResponse = await client.GetAsync($"/api/v1/dashboard/bills?externalInvoiceId={externalInvoiceId}&status=Available");
+        availableListResponse.EnsureSuccessStatusCode();
+        using var availableListJson = await JsonDocument.ParseAsync(await availableListResponse.Content.ReadAsStreamAsync());
+        Assert.Equal(0, availableListJson.RootElement.GetProperty("total").GetInt32());
     }
 
     [Fact]

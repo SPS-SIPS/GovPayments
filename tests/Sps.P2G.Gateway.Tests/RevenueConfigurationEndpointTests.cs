@@ -58,6 +58,21 @@ public sealed class RevenueConfigurationEndpointTests : IClassFixture<P2GWebAppl
     }
 
     [Fact]
+    public async Task RevenueAccountCreation_RejectsDuplicateActiveAccountNumberForAuthority()
+    {
+        var client = _factory.CreateClient();
+        var (authorityId, apiKey) = await CreateAuthorityAsync(client);
+        using var createResponse = await CreateRevenueAccountAsync(client, authorityId, apiKey, isDefault: true);
+        createResponse.EnsureSuccessStatusCode();
+
+        using var duplicateResponse = await CreateRevenueAccountAsync(client, authorityId, apiKey, isDefault: false);
+
+        Assert.Equal(HttpStatusCode.Conflict, duplicateResponse.StatusCode);
+        using var json = await JsonDocument.ParseAsync(await duplicateResponse.Content.ReadAsStreamAsync());
+        Assert.Equal("active revenue account already exists for this account number and clearing type", json.RootElement.GetProperty("error").GetString());
+    }
+
+    [Fact]
     public async Task BillCreation_RejectsMdaServiceCurrencyWithoutConfiguredDefaultAccount()
     {
         var client = _factory.CreateClient();

@@ -179,6 +179,16 @@ public static class RevenueConfigurationEndpoints
             UpdatedAt = now
         };
 
+        if (await db.RevenueAccounts.AnyAsync(
+            x => x.AuthorityId == authority.Id &&
+                 x.AccountNumber == account.AccountNumber &&
+                 x.ClearingType == account.ClearingType &&
+                 x.Status == "Active",
+            cancellationToken))
+        {
+            return Results.Conflict(new { error = "active revenue account already exists for this account number and clearing type" });
+        }
+
         var hasDefaultForCombination = await db.RevenueAccounts.AnyAsync(
             x => x.AuthorityId == authority.Id &&
                  x.MdaCode == account.MdaCode &&

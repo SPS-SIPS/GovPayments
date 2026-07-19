@@ -27,22 +27,30 @@ public static class DashboardEndpoints
 
         group.MapGet("/bills", async (
             GatewayDbContext db,
+            IClock clock,
             string? upr,
             string? externalInvoiceId,
             string? taxpayerReference,
             string? mdaCode,
             string? serviceCode,
             string? status,
-            int page,
-            int pageSize,
+            int? page,
+            int? pageSize,
             CancellationToken cancellationToken) =>
         {
-            page = page <= 0 ? 1 : page;
-            pageSize = pageSize is <= 0 or > 200 ? 50 : pageSize;
-            var query = BillEndpoints.FilterBills(db.Bills, upr, externalInvoiceId, taxpayerReference, mdaCode, serviceCode, status);
+            var normalizedPage = page is null or <= 0 ? 1 : page.Value;
+            var normalizedPageSize = pageSize is null or <= 0 or > 200 ? 50 : pageSize.Value;
+            var now = clock.UtcNow;
+            var query = BillEndpoints.FilterBills(db.Bills, upr, externalInvoiceId, taxpayerReference, mdaCode, serviceCode, null);
+            query = ApplyEffectiveStatusFilter(query, status, now);
             var total = await query.CountAsync(cancellationToken);
-            var items = await query.OrderByDescending(x => x.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize).Select(x => BillEndpoints.ProjectBill(x)).ToListAsync(cancellationToken);
-            return Results.Ok(new { page, pageSize, total, items });
+            var bills = await query
+                .OrderByDescending(x => x.CreatedAt)
+                .Skip((normalizedPage - 1) * normalizedPageSize)
+                .Take(normalizedPageSize)
+                .ToListAsync(cancellationToken);
+            var items = bills.Select(x => ProjectBill(x, now));
+            return Results.Ok(new { page = normalizedPage, pageSize = normalizedPageSize, total, items });
         });
 
         group.MapGet("/authorities", async (
@@ -88,8 +96,8 @@ public static class DashboardEndpoints
             return Results.Ok(new
             {
                 totalBills,
-                availableBills = await bills.CountAsync(x => x.StatusProjection == BillStatuses.Available, cancellationToken),
-                fetchedBills = await bills.CountAsync(x => x.StatusProjection == BillStatuses.Fetched, cancellationToken),
+                availableBills = await bills.CountAsync(x => x.StatusProjection == BillStatuses.Available && x.ExpiresAt > now, cancellationToken),
+                fetchedBills = await bills.CountAsync(x => x.StatusProjection == BillStatuses.Fetched && x.ExpiresAt > now, cancellationToken),
                 paidBills,
                 expiredBills = await bills.CountAsync(x =>
                     x.StatusProjection == BillStatuses.Expired ||
@@ -283,6 +291,68 @@ public static class DashboardEndpoints
         authority.CreatedAt,
         authority.UpdatedAt
     };
+
+    private static IQueryable<Bill> ApplyEffectiveStatusFilter(IQueryable<Bill> query, string? status, DateTimeOffset now)
+    {
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            return query;
+        }
+
+        var normalizedStatus = status.Trim();
+        if (string.Equals(normalizedStatus, BillStatuses.Expired, StringComparison.OrdinalIgnoreCase))
+        {
+            return query.Where(x =>
+                x.StatusProjection == BillStatuses.Expired ||
+                (x.ExpiresAt <= now &&
+                 x.StatusProjection != BillStatuses.Paid &&
+                 x.StatusProjection != BillStatuses.Cancelled &&
+                 x.StatusProjection != BillStatuses.Voided &&
+                 x.StatusProjection != BillStatuses.Reversed &&
+                 x.StatusProjection != BillStatuses.PartiallyReversed));
+        }
+
+        if (string.Equals(normalizedStatus, BillStatuses.Available, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(normalizedStatus, BillStatuses.Fetched, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(normalizedStatus, BillStatuses.PaymentInitiated, StringComparison.OrdinalIgnoreCase))
+        {
+            return query.Where(x => x.StatusProjection == normalizedStatus && x.ExpiresAt > now);
+        }
+
+        return query.Where(x => x.StatusProjection == normalizedStatus);
+    }
+
+    private static object ProjectBill(Bill bill, DateTimeOffset now) => new
+    {
+        billId = bill.Id,
+        bill.UPR,
+        bill.ExternalInvoiceId,
+        status = ResolveEffectiveBillStatus(bill, now),
+        bill.Amount,
+        bill.Currency,
+        bill.MdaCode,
+        bill.ServiceCode,
+        bill.RevenueCode,
+        bill.TaxpayerReference,
+        bill.ExpiresAt,
+        bill.RecordHash
+    };
+
+    private static string ResolveEffectiveBillStatus(Bill bill, DateTimeOffset now)
+    {
+        if (bill.ExpiresAt > now)
+        {
+            return bill.StatusProjection;
+        }
+
+        return bill.StatusProjection is BillStatuses.Paid
+            or BillStatuses.Cancelled
+            or BillStatuses.Voided
+            or BillStatuses.Reversed
+            or BillStatuses.PartiallyReversed
+            ? bill.StatusProjection
+            : BillStatuses.Expired;
+    }
 
     private static async Task<object> CreateBillsFromDashboardAsync(
         Domain.Authorities.RevenueAuthority authority,
