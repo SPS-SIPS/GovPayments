@@ -170,6 +170,33 @@ public sealed class P2GFlowTests : IClassFixture<P2GWebApplicationFactory>
     }
 
     [Fact]
+    public async Task SipsVerify_WithAcctTypeFallsBackToActiveRevenueAccountWhenClearingTypeDiffers()
+    {
+        var client = _factory.CreateClient();
+        await CreateAuthorityAccountAndBillAsync(
+            client,
+            invoiceId: "INV-ACCT-GENERIC-VERIFY",
+            upr: "SRA-TAX-2026-INV-ACCT-GENERIC-VERIFY",
+            clearingType: "IPS",
+            accountNumber: "34177062");
+
+        using var verifyResponse = await PostInternalAsync(client, "/api/v1/sips-connect/verify", new
+        {
+            accountNo = "34177062",
+            type = "ACCT",
+            agent = "SENDBICXXXX",
+            verificationId = "VER-ACCT-GENERIC-001"
+        });
+
+        verifyResponse.EnsureSuccessStatusCode();
+        using var verifyJson = await JsonDocument.ParseAsync(await verifyResponse.Content.ReadAsStreamAsync());
+        Assert.True(verifyJson.RootElement.GetProperty("isVerified").GetBoolean());
+        Assert.Equal("Account verified", verifyJson.RootElement.GetProperty("message").GetString());
+        Assert.Equal("34177062", verifyJson.RootElement.GetProperty("accountNo").GetString());
+        Assert.Equal("IPS", verifyJson.RootElement.GetProperty("accountType").GetString());
+    }
+
+    [Fact]
     public async Task SipsVerify_WithBillTypeStillUsesInvoiceLookup()
     {
         var client = _factory.CreateClient();
@@ -674,7 +701,8 @@ public sealed class P2GFlowTests : IClassFixture<P2GWebApplicationFactory>
         string invoiceId = "INV123456",
         string upr = "SRA-TAX-2026-INV123456",
         string? billCorrelationId = null,
-        string clearingType = "ACCT")
+        string clearingType = "ACCT",
+        string accountNumber = "1234567890")
     {
         using var authorityResponse = await client.PostAsJsonAsync("/api/v1/authorities", new
         {
@@ -697,7 +725,7 @@ public sealed class P2GFlowTests : IClassFixture<P2GWebApplicationFactory>
                 revenueCode = "TINCOME",
                 bankCode = "010001",
                 bankName = "CBS Settlement Bank",
-                accountNumber = "1234567890",
+                accountNumber,
                 accountName = "Somali Revenue Authority",
                 clearingType,
                 billerBic = "SIPSBICXXXX",

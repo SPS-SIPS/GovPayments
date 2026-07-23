@@ -568,9 +568,22 @@ public static class SipsConnectEndpoints
     {
         var normalizedAccountNo = accountNo.Trim();
         var normalizedAccountType = accountType.Trim().ToUpperInvariant();
-        return await db.RevenueAccounts
+        var exactMatch = await db.RevenueAccounts
             .Where(x => x.AccountNumber == normalizedAccountNo &&
                         x.ClearingType == normalizedAccountType &&
+                        x.Status == "Active")
+            .OrderByDescending(x => x.IsDefault)
+            .ThenBy(x => x.MdaCode)
+            .ThenBy(x => x.ServiceCode)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (exactMatch is not null || !string.Equals(normalizedAccountType, "ACCT", StringComparison.OrdinalIgnoreCase))
+        {
+            return exactMatch;
+        }
+
+        return await db.RevenueAccounts
+            .Where(x => x.AccountNumber == normalizedAccountNo &&
                         x.Status == "Active")
             .OrderByDescending(x => x.IsDefault)
             .ThenBy(x => x.MdaCode)
