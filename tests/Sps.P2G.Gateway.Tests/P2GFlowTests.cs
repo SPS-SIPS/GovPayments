@@ -144,6 +144,53 @@ public sealed class P2GFlowTests : IClassFixture<P2GWebApplicationFactory>
     }
 
     [Fact]
+    public async Task SipsVerify_WithIpsTypeVerifiesRevenueAccount()
+    {
+        var client = _factory.CreateClient();
+        await CreateAuthorityAccountAndBillAsync(
+            client,
+            invoiceId: "INV-IPS-VERIFY",
+            upr: "SRA-TAX-2026-INV-IPS-VERIFY",
+            clearingType: "IPS");
+
+        using var verifyResponse = await PostInternalAsync(client, "/api/v1/sips-connect/verify", new
+        {
+            accountNo = "1234567890",
+            type = "IPS",
+            agent = "SENDBICXXXX",
+            verificationId = "VER-IPS-001"
+        });
+
+        verifyResponse.EnsureSuccessStatusCode();
+        using var verifyJson = await JsonDocument.ParseAsync(await verifyResponse.Content.ReadAsStreamAsync());
+        Assert.True(verifyJson.RootElement.GetProperty("isVerified").GetBoolean());
+        Assert.Equal("Account verified", verifyJson.RootElement.GetProperty("message").GetString());
+        Assert.Equal("1234567890", verifyJson.RootElement.GetProperty("accountNo").GetString());
+        Assert.Equal("IPS", verifyJson.RootElement.GetProperty("accountType").GetString());
+    }
+
+    [Fact]
+    public async Task SipsVerify_WithBillTypeStillUsesInvoiceLookup()
+    {
+        var client = _factory.CreateClient();
+        var setup = await CreateAuthorityAccountAndBillAsync(client, invoiceId: "INV-BILL-TYPE", upr: "SRA-TAX-2026-INV-BILL-TYPE");
+
+        using var verifyResponse = await PostInternalAsync(client, "/api/v1/sips-connect/verify", new
+        {
+            accountNo = setup.Upr,
+            type = "BILL",
+            agent = "SENDBICXXXX",
+            verificationId = "VER-BILL-TYPE-001"
+        });
+
+        verifyResponse.EnsureSuccessStatusCode();
+        using var verifyJson = await JsonDocument.ParseAsync(await verifyResponse.Content.ReadAsStreamAsync());
+        Assert.True(verifyJson.RootElement.GetProperty("isVerified").GetBoolean());
+        Assert.Equal("Invoice verified", verifyJson.RootElement.GetProperty("message").GetString());
+        Assert.Equal(setup.Upr, verifyJson.RootElement.GetProperty("billReference").GetString());
+    }
+
+    [Fact]
     public async Task PaymentConfirm_RejectsAmountMismatchAndLeavesBillFetched()
     {
         var client = _factory.CreateClient();
@@ -626,7 +673,8 @@ public sealed class P2GFlowTests : IClassFixture<P2GWebApplicationFactory>
         HttpClient client,
         string invoiceId = "INV123456",
         string upr = "SRA-TAX-2026-INV123456",
-        string? billCorrelationId = null)
+        string? billCorrelationId = null,
+        string clearingType = "ACCT")
     {
         using var authorityResponse = await client.PostAsJsonAsync("/api/v1/authorities", new
         {
@@ -651,7 +699,7 @@ public sealed class P2GFlowTests : IClassFixture<P2GWebApplicationFactory>
                 bankName = "CBS Settlement Bank",
                 accountNumber = "1234567890",
                 accountName = "Somali Revenue Authority",
-                clearingType = "ACCT",
+                clearingType,
                 billerBic = "SIPSBICXXXX",
                 currency = "USD",
                 isDefault = true

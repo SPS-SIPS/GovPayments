@@ -64,9 +64,9 @@ public static class SipsConnectEndpoints
             }
 
             var accountType = FirstNonEmpty(request.Type, request.AccountType);
-            if (string.Equals(accountType, "ACCT", StringComparison.OrdinalIgnoreCase))
+            if (accountType is not null && !IsBillLookupType(accountType))
             {
-                var revenueAccount = await FindRevenueAccountAsync(db, accountNo, "ACCT", cancellationToken);
+                var revenueAccount = await FindRevenueAccountAsync(db, accountNo, accountType, cancellationToken);
                 if (revenueAccount is null)
                 {
                     return Results.Ok(VerificationResponse.Rejected("ACCOUNT_NOT_FOUND"));
@@ -532,6 +532,11 @@ public static class SipsConnectEndpoints
     }
 
     private static decimal GetPaymentAmount(PaymentRequest request) => request.Amount > 0 ? request.Amount : request.AmountPayable ?? 0m;
+
+    private static bool IsBillLookupType(string value) =>
+        string.Equals(value, "BILL", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(value, "INVOICE", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(value, "UPR", StringComparison.OrdinalIgnoreCase);
 
     private static string? GetNonPayableReason(Bill bill, DateTimeOffset now)
     {
