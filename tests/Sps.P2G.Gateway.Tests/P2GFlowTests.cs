@@ -73,7 +73,7 @@ public sealed class P2GFlowTests : IClassFixture<P2GWebApplicationFactory>
 
         paymentResponse.EnsureSuccessStatusCode();
         using var paymentJson = await JsonDocument.ParseAsync(await paymentResponse.Content.ReadAsStreamAsync());
-        Assert.Equal("ACCP", paymentJson.RootElement.GetProperty("status").GetString());
+        Assert.Equal("ACSC", paymentJson.RootElement.GetProperty("status").GetString());
 
         var billRequest = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/authorities/{setup.AuthorityId}/bills/{setup.BillId}");
         billRequest.Headers.Add("X-Authority-Api-Key", setup.ApiKey);
@@ -116,7 +116,7 @@ public sealed class P2GFlowTests : IClassFixture<P2GWebApplicationFactory>
 
         paymentResponse.EnsureSuccessStatusCode();
         using var paymentJson = await JsonDocument.ParseAsync(await paymentResponse.Content.ReadAsStreamAsync());
-        Assert.Equal("ACCP", paymentJson.RootElement.GetProperty("status").GetString());
+        Assert.Equal("ACSC", paymentJson.RootElement.GetProperty("status").GetString());
     }
 
     [Fact]
@@ -388,7 +388,7 @@ public sealed class P2GFlowTests : IClassFixture<P2GWebApplicationFactory>
         using (var paymentJson = await JsonDocument.ParseAsync(await paymentResponse.Content.ReadAsStreamAsync()))
         {
             Assert.Equal(setup.Upr, paymentJson.RootElement.GetProperty("endToEndId").GetString());
-            Assert.Equal("ACCP", paymentJson.RootElement.GetProperty("status").GetString());
+            Assert.Equal("ACSC", paymentJson.RootElement.GetProperty("status").GetString());
             Assert.Equal("Accepted", paymentJson.RootElement.GetProperty("reason").GetString());
             Assert.Equal("Invoice payment accepted", paymentJson.RootElement.GetProperty("additionalInfo").GetString());
             Assert.True(paymentJson.RootElement.TryGetProperty("acceptanceDate", out _));
@@ -428,7 +428,7 @@ public sealed class P2GFlowTests : IClassFixture<P2GWebApplicationFactory>
         {
             Assert.Equal("TX-ADAPTER-001", returnJson.RootElement.GetProperty("txId").GetString());
             Assert.Equal(setup.Upr, returnJson.RootElement.GetProperty("endToEndId").GetString());
-            Assert.Equal("ACCP", returnJson.RootElement.GetProperty("status").GetString());
+            Assert.Equal("ACSC", returnJson.RootElement.GetProperty("status").GetString());
             Assert.Equal("Accepted", returnJson.RootElement.GetProperty("reason").GetString());
             Assert.Equal("Return accepted for processing", returnJson.RootElement.GetProperty("additionalInfo").GetString());
         }
@@ -583,7 +583,7 @@ public sealed class P2GFlowTests : IClassFixture<P2GWebApplicationFactory>
         secondResponse.EnsureSuccessStatusCode();
         using (var secondJson = await JsonDocument.ParseAsync(await secondResponse.Content.ReadAsStreamAsync()))
         {
-            Assert.Equal("ACCP", secondJson.RootElement.GetProperty("status").GetString());
+            Assert.Equal("ACSC", secondJson.RootElement.GetProperty("status").GetString());
             Assert.Equal("Duplicate payment already processed", secondJson.RootElement.GetProperty("additionalInfo").GetString());
         }
 
@@ -686,7 +686,7 @@ public sealed class P2GFlowTests : IClassFixture<P2GWebApplicationFactory>
         duplicateReversalResponse.EnsureSuccessStatusCode();
         using (var duplicateJson = await JsonDocument.ParseAsync(await duplicateReversalResponse.Content.ReadAsStreamAsync()))
         {
-            Assert.Equal("ACCP", duplicateJson.RootElement.GetProperty("status").GetString());
+            Assert.Equal("ACSC", duplicateJson.RootElement.GetProperty("status").GetString());
             Assert.Equal("Duplicate return already processed", duplicateJson.RootElement.GetProperty("additionalInfo").GetString());
         }
 

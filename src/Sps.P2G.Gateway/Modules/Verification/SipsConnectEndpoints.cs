@@ -813,7 +813,7 @@ public sealed record PaymentResponse(
     string TxId)
 {
     public static PaymentResponse Accepted(string? endToEndId, string txId, string additionalInfo) =>
-        new(endToEndId, "ACCP", "Accepted", additionalInfo, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, txId);
+        new(endToEndId, "ACSC", "Accepted", additionalInfo, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, txId);
 
     public static PaymentResponse Rejected(string? endToEndId, string txId, string reason) =>
         new(endToEndId, "RJCT", reason, reason, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, txId);
@@ -839,7 +839,7 @@ public sealed record ReturnResponse(
     string Reason,
     string AdditionalInfo)
 {
-    public static ReturnResponse Accepted(string txId, string? endToEndId, string info) => new(txId, endToEndId, "ACCP", "Accepted", info);
+    public static ReturnResponse Accepted(string txId, string? endToEndId, string info) => new(txId, endToEndId, "ACSC", "Accepted", info);
     public static ReturnResponse Rejected(string txId, string? endToEndId, string reason) => new(txId, endToEndId, "RJCT", reason, reason);
 }
 

@@ -52,7 +52,7 @@ public sealed class P2GPostgresIntegrationTests : IClassFixture<PostgresP2GWebAp
         });
         paymentResponse.EnsureSuccessStatusCode();
         using var paymentJson = await JsonDocument.ParseAsync(await paymentResponse.Content.ReadAsStreamAsync());
-        Assert.Equal("ACCP", paymentJson.RootElement.GetProperty("status").GetString());
+        Assert.Equal("ACSC", paymentJson.RootElement.GetProperty("status").GetString());
 
         await using var scope = _factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<GatewayDbContext>();
@@ -97,7 +97,7 @@ public sealed class P2GPostgresIntegrationTests : IClassFixture<PostgresP2GWebAp
         {
             response.EnsureSuccessStatusCode();
             using var json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
-            Assert.Equal("ACCP", json.RootElement.GetProperty("status").GetString());
+            Assert.Equal("ACSC", json.RootElement.GetProperty("status").GetString());
         }
 
         await using var scope = _factory.Services.CreateAsyncScope();
