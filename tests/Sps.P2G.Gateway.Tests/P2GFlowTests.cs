@@ -80,7 +80,16 @@ public sealed class P2GFlowTests : IClassFixture<P2GWebApplicationFactory>
         using var billResponse = await client.SendAsync(billRequest);
         billResponse.EnsureSuccessStatusCode();
         using var billJson = await JsonDocument.ParseAsync(await billResponse.Content.ReadAsStreamAsync());
-        Assert.Equal("Paid", billJson.RootElement.GetProperty("status").GetString());
+        Assert.Equal("PaymentInitiated", billJson.RootElement.GetProperty("status").GetString());
+
+        await CompletePaymentAsync(client, "TX-001", setup.Upr);
+
+        var completedBillRequest = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/authorities/{setup.AuthorityId}/bills/{setup.BillId}");
+        completedBillRequest.Headers.Add("X-Authority-Api-Key", setup.ApiKey);
+        using var completedBillResponse = await client.SendAsync(completedBillRequest);
+        completedBillResponse.EnsureSuccessStatusCode();
+        using var completedBillJson = await JsonDocument.ParseAsync(await completedBillResponse.Content.ReadAsStreamAsync());
+        Assert.Equal("Paid", completedBillJson.RootElement.GetProperty("status").GetString());
     }
 
     [Fact]
@@ -396,6 +405,8 @@ public sealed class P2GFlowTests : IClassFixture<P2GWebApplicationFactory>
             Assert.Equal("TX-ADAPTER-001", paymentJson.RootElement.GetProperty("txId").GetString());
         }
 
+        await CompletePaymentAsync(client, "TX-ADAPTER-001", setup.Upr);
+
         using var statusResponse = await PostInternalAsync(client, "/api/v1/sips-connect/payments/status", new
         {
             endToEndId = setup.Upr,
@@ -541,6 +552,15 @@ public sealed class P2GFlowTests : IClassFixture<P2GWebApplicationFactory>
         using (var scope = _factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<GatewayDbContext>();
+            Assert.Empty(db.CallbackDeliveries);
+            Assert.Empty(db.OutboxMessages);
+        }
+
+        await CompletePaymentAsync(client, "TX-CALLBACK-001", setup.Upr);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<GatewayDbContext>();
             var delivery = Assert.Single(db.CallbackDeliveries);
             Assert.Equal("Pending", delivery.Status);
             Assert.Contains("\"eventType\":\"BillPaid\"", delivery.PayloadJson);
@@ -584,7 +604,22 @@ public sealed class P2GFlowTests : IClassFixture<P2GWebApplicationFactory>
         using (var secondJson = await JsonDocument.ParseAsync(await secondResponse.Content.ReadAsStreamAsync()))
         {
             Assert.Equal("ACSC", secondJson.RootElement.GetProperty("status").GetString());
-            Assert.Equal("Duplicate payment already processed", secondJson.RootElement.GetProperty("additionalInfo").GetString());
+            Assert.Equal("Duplicate payment accepted; awaiting completion notification", secondJson.RootElement.GetProperty("additionalInfo").GetString());
+        }
+
+        using var completionNotificationResponse = await PostInternalAsync(client, "/api/v1/sips-connect/payments/confirm", new
+        {
+            txId = "TX-IDEMP-001",
+            endToEndId = setup.Upr,
+            status = "ACSC",
+            reason = "Transaction Completed",
+            additionalInfo = "Final success confirmation from Switch"
+        });
+        completionNotificationResponse.EnsureSuccessStatusCode();
+        using (var completionJson = await JsonDocument.ParseAsync(await completionNotificationResponse.Content.ReadAsStreamAsync()))
+        {
+            Assert.Equal("ACSC", completionJson.RootElement.GetProperty("status").GetString());
+            Assert.Equal("Payment completed", completionJson.RootElement.GetProperty("additionalInfo").GetString());
         }
 
         using var differentPayloadResponse = await PostInternalAsync(client, "/api/v1/sips-connect/payments/confirm", new
@@ -642,6 +677,8 @@ public sealed class P2GFlowTests : IClassFixture<P2GWebApplicationFactory>
         });
         paymentResponse.EnsureSuccessStatusCode();
 
+        await CompletePaymentAsync(client, "TX-REV-001", setup.Upr);
+
         using var unknownResponse = await PostInternalAsync(client, "/api/v1/sips-connect/payments/reverse", new
         {
             txId = "TX-REV-MISSING",
@@ -694,6 +731,22 @@ public sealed class P2GFlowTests : IClassFixture<P2GWebApplicationFactory>
         var db = scope.ServiceProvider.GetRequiredService<GatewayDbContext>();
         Assert.Equal(1, db.BillReversals.Count(x => x.OriginalSipsTransactionId == "TX-REV-001" && x.ReversalTransactionId == "RTN-REV-001"));
         Assert.Equal(1, db.IdempotencyRecords.Count(x => x.Key == $"payment:reverse:TX-REV-001:{setup.Upr}:RTN-REV-001"));
+    }
+
+    internal static async Task CompletePaymentAsync(HttpClient client, string txId, string endToEndId)
+    {
+        using var completionResponse = await PostInternalAsync(client, "/api/v1/sips-connect/payments/confirm", new
+        {
+            txId,
+            endToEndId,
+            status = "ACSC",
+            reason = "Accepted",
+            additionalInfo = "Final success confirmation from Switch",
+            acceptedAtUtc = DateTimeOffset.UtcNow
+        });
+        completionResponse.EnsureSuccessStatusCode();
+        using var completionJson = await JsonDocument.ParseAsync(await completionResponse.Content.ReadAsStreamAsync());
+        Assert.Equal("ACSC", completionJson.RootElement.GetProperty("status").GetString());
     }
 
     internal static async Task<TestSetup> CreateAuthorityAccountAndBillAsync(

@@ -41,6 +41,8 @@ public sealed class ReconciliationEndpointTests : IClassFixture<P2GWebApplicatio
         });
         paymentResponse.EnsureSuccessStatusCode();
 
+        await P2GFlowTests.CompletePaymentAsync(client, "TX-RECON-001", setup.Upr);
+
         var paymentsRequest = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/authorities/{setup.AuthorityId}/payments?txId=TX-RECON-001&upr={setup.Upr}&status=ACSC&mdaCode=SRA&serviceCode=TAX&accountNumber=1234567890");
         paymentsRequest.Headers.Add("X-Authority-Api-Key", setup.ApiKey);
         using var paymentsResponse = await client.SendAsync(paymentsRequest);

@@ -57,6 +57,10 @@ public sealed class P2GPostgresIntegrationTests : IClassFixture<PostgresP2GWebAp
         await using var scope = _factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<GatewayDbContext>();
         Assert.True(db.Database.ProviderName?.Contains("Npgsql", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(0, db.BillPayments.Count(x => x.TxId == "TX-PG-001"));
+        Assert.Equal(1, db.BillPaymentAttempts.Count(x => x.TxId == "TX-PG-001" && x.Reason == "PAYMENT_ACCEPTED_PENDING_COMPLETION"));
+
+        await P2GFlowTests.CompletePaymentAsync(client, "TX-PG-001", setup.Upr);
         Assert.Equal(1, db.BillPayments.Count(x => x.TxId == "TX-PG-001"));
         Assert.True(db.BillEvents.Count(x => x.BillId == setup.BillId) >= 4);
     }
@@ -102,6 +106,10 @@ public sealed class P2GPostgresIntegrationTests : IClassFixture<PostgresP2GWebAp
 
         await using var scope = _factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<GatewayDbContext>();
+        Assert.Equal(0, db.BillPayments.Count(x => x.TxId == "TX-PG-RACE-001"));
+        Assert.Equal(1, db.BillPaymentAttempts.Count(x => x.TxId == "TX-PG-RACE-001" && x.Reason == "PAYMENT_ACCEPTED_PENDING_COMPLETION"));
+
+        await P2GFlowTests.CompletePaymentAsync(client, "TX-PG-RACE-001", setup.Upr);
         Assert.Equal(1, db.BillPayments.Count(x => x.TxId == "TX-PG-RACE-001"));
         Assert.Equal(1, db.IdempotencyRecords.Count(x => x.Key == "payment:confirm:TX-PG-RACE-001"));
         Assert.Equal(2, db.BillEvents.Count(x => x.BillId == setup.BillId && (x.EventType == "PaymentAccepted" || x.EventType == "BillPaid")));

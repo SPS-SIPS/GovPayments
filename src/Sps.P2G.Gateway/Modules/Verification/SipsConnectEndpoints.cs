@@ -100,6 +100,11 @@ public static class SipsConnectEndpoints
             }
 
             var txId = FirstNonEmpty(request.SipsTransactionId, request.TxId);
+            if (LooksLikeCompletionNotification(request))
+            {
+                return await HandlePaymentCompletionAsync(request, txId, db, hashChain, clock, cancellationToken);
+            }
+
             var contractError = ValidatePaymentContract(request, txId);
             if (contractError is not null)
             {
@@ -116,6 +121,17 @@ public static class SipsConnectEndpoints
             if (idempotencyRecord is not null && idempotencyRecord.PayloadHash != payloadHash)
             {
                 return Results.Ok(PaymentResponse.Rejected(paymentEndToEndId, paymentTxId, "DUPLICATE_TX_DIFFERENT_PAYLOAD"));
+            }
+
+            if (idempotencyRecord is not null)
+            {
+                var existingAttempt = await db.BillPaymentAttempts.FirstOrDefaultAsync(
+                    x => x.TxId == paymentTxId && x.Status == "ACSC" && x.Reason == "PAYMENT_ACCEPTED_PENDING_COMPLETION",
+                    cancellationToken);
+                if (existingAttempt is not null)
+                {
+                    return Results.Ok(PaymentResponse.Accepted(existingAttempt.EndToEndId, paymentTxId, "Duplicate payment accepted; awaiting completion notification"));
+                }
             }
 
             var existingPayment = await db.BillPayments.FirstOrDefaultAsync(x => x.SipsTransactionId == paymentTxId || x.TxId == paymentTxId, cancellationToken);
@@ -170,50 +186,32 @@ public static class SipsConnectEndpoints
             }
 
             var now = clock.UtcNow;
-            var paidAt = request.PaidAt ?? request.AcceptedAtUtc ?? request.Date ?? now;
-            var payment = new BillPayment
+            db.BillPaymentAttempts.Add(new BillPaymentAttempt
             {
                 Id = Guid.NewGuid(),
                 BillId = bill.Id,
                 AuthorityId = bill.AuthorityId,
-                SipsTransactionId = paymentTxId,
-                EndToEndId = paymentEndToEndId,
-                OriginalMessageId = request.OriginalMessageId ?? request.MsgId ?? "",
                 TxId = paymentTxId,
-                Amount = GetPaymentAmount(request),
-                Currency = paymentCurrency,
+                EndToEndId = paymentEndToEndId,
                 Status = "ACSC",
-                PaidAt = paidAt,
-                PayerName = request.Payer?.Name ?? request.DebtorName ?? "",
-                PayerAccount = request.Payer?.Account ?? request.DebtorAccount ?? "",
-                PayerBankCode = request.Payer?.BankCode ?? request.FromBIC ?? "",
-                PayerBankName = request.Payer?.BankName ?? "",
-                PayerClearingType = request.Payer?.ClearingType ?? request.DebtorAccountType ?? "",
-                PayeeName = request.Payee?.Name ?? request.CreditorName ?? "",
-                PayeeAccount = request.Payee?.Account ?? request.CreditorAccount ?? "",
-                PayeeBankCode = request.Payee?.BankCode ?? request.ToBIC ?? "",
-                PayeeBankName = request.Payee?.BankName ?? "",
-                PayeeClearingType = request.Payee?.ClearingType ?? request.CreditorAccountType ?? "",
+                Reason = "PAYMENT_ACCEPTED_PENDING_COMPLETION",
                 RawPayloadJson = payloadJson,
                 CreatedAt = now
-            };
-            db.BillPayments.Add(payment);
+            });
             db.IdempotencyRecords.Add(new IdempotencyRecord
             {
                 Id = Guid.NewGuid(),
                 Key = idempotencyKey,
                 PayloadHash = payloadHash,
-                ResourceId = payment.Id,
+                ResourceId = bill.Id,
                 CreatedAt = now
             });
 
-            bill.StatusProjection = BillStatuses.Paid;
+            bill.StatusProjection = BillStatuses.PaymentInitiated;
             bill.UpdatedAt = now;
 
             var paidAmount = GetPaymentAmount(request);
-            await hashChain.AppendAsync(db, bill, BillEventTypes.PaymentAccepted, new { bill.Id, bill.UPR, txId = paymentTxId, amount = paidAmount, currency = paymentCurrency }, "SipsConnect", request.FromBIC ?? "", "SipsConnect", paymentTxId, cancellationToken);
-            var paidEvent = await hashChain.AppendAsync(db, bill, BillEventTypes.BillPaid, new { bill.Id, bill.UPR, txId = paymentTxId, amount = paidAmount, currency = paymentCurrency, paidAt }, "SipsConnect", request.FromBIC ?? "", "SipsConnect", paymentTxId, cancellationToken);
-            await QueueCallbacksAsync(db, bill.AuthorityId, paidEvent, clock, cancellationToken);
+            await hashChain.AppendAsync(db, bill, BillEventTypes.PaymentAccepted, new { bill.Id, bill.UPR, txId = paymentTxId, amount = paidAmount, currency = paymentCurrency, status = "PendingCompletion" }, "SipsConnect", request.FromBIC ?? "", "SipsConnect", paymentTxId, cancellationToken);
             try
             {
                 await db.SaveChangesAsync(cancellationToken);
@@ -226,7 +224,15 @@ public static class SipsConnectEndpoints
                     cancellationToken);
                 if (duplicatePayment is null)
                 {
-                    throw;
+                    var duplicateAttempt = await db.BillPaymentAttempts.FirstOrDefaultAsync(
+                        x => x.TxId == paymentTxId && x.Status == "ACSC" && x.Reason == "PAYMENT_ACCEPTED_PENDING_COMPLETION",
+                        cancellationToken);
+                    if (duplicateAttempt is null)
+                    {
+                        throw;
+                    }
+
+                    return Results.Ok(PaymentResponse.Accepted(duplicateAttempt.EndToEndId, paymentTxId, "Duplicate payment accepted; awaiting completion notification"));
                 }
 
                 return Results.Ok(BuildDuplicatePaymentResponse(duplicatePayment, paymentTxId, payloadHash, paymentEndToEndId));
@@ -515,6 +521,130 @@ public static class SipsConnectEndpoints
             || string.Equals(categoryPurpose, "C2GDQR", StringComparison.OrdinalIgnoreCase);
     }
 
+    private static bool LooksLikeCompletionNotification(PaymentRequest request)
+    {
+        return FirstNonEmpty(request.SipsTransactionId, request.TxId) is not null
+            && FirstNonEmpty(request.ToBIC, request.Payee?.BankCode, request.CreditorAgentBIC) is null
+            && FirstNonEmpty(request.CategoryPurpose) is null
+            && FirstNonEmpty(request.MsgDefIdr) is null
+            && FirstNonEmpty(request.Status) is not null;
+    }
+
+    private static async Task<IResult> HandlePaymentCompletionAsync(
+        PaymentRequest completion,
+        string? txId,
+        GatewayDbContext db,
+        IHashChainService hashChain,
+        IClock clock,
+        CancellationToken cancellationToken)
+    {
+        if (txId is null)
+        {
+            return Results.Ok(PaymentResponse.Rejected(completion.EndToEndId, "", "MISSING_TX_ID"));
+        }
+
+        var existingPayment = await db.BillPayments.FirstOrDefaultAsync(x => x.SipsTransactionId == txId || x.TxId == txId, cancellationToken);
+        if (existingPayment is not null)
+        {
+            return Results.Ok(PaymentResponse.Accepted(existingPayment.EndToEndId, txId, "Duplicate payment already processed"));
+        }
+
+        var pendingAttempt = await db.BillPaymentAttempts
+            .Where(x => x.TxId == txId && x.Status == "ACSC" && x.Reason == "PAYMENT_ACCEPTED_PENDING_COMPLETION")
+            .OrderByDescending(x => x.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (pendingAttempt is null)
+        {
+            return Results.Ok(PaymentResponse.Rejected(completion.EndToEndId, txId, "PAYMENT_ATTEMPT_NOT_FOUND"));
+        }
+
+        if (!string.Equals(completion.Status, "ACSC", StringComparison.OrdinalIgnoreCase))
+        {
+            var rejectionReason = completion.Status ?? "PAYMENT_COMPLETION_REJECTED";
+            await StoreAttemptAsync(db, completion, pendingAttempt.BillId, pendingAttempt.AuthorityId, completion.Status ?? "RJCT", rejectionReason, clock, cancellationToken);
+            if (pendingAttempt.BillId is not null)
+            {
+                var failedBill = await db.Bills.FirstOrDefaultAsync(x => x.Id == pendingAttempt.BillId, cancellationToken);
+                if (failedBill is not null && failedBill.StatusProjection == BillStatuses.PaymentInitiated)
+                {
+                    failedBill.StatusProjection = BillStatuses.Failed;
+                    failedBill.UpdatedAt = clock.UtcNow;
+                    await hashChain.AppendAsync(db, failedBill, BillEventTypes.PaymentRejected, new { failedBill.Id, failedBill.UPR, txId, reason = rejectionReason }, "SipsConnect", completion.FromBIC ?? "", "SipsConnect", txId, cancellationToken);
+                }
+            }
+
+            await db.SaveChangesAsync(cancellationToken);
+            return Results.Ok(PaymentResponse.Rejected(completion.EndToEndId ?? pendingAttempt.EndToEndId, txId, rejectionReason));
+        }
+
+        var initial = JsonSerializer.Deserialize<PaymentRequest>(pendingAttempt.RawPayloadJson, JsonDefaults.SerializerOptions);
+        if (initial is null || pendingAttempt.BillId is null)
+        {
+            return Results.Ok(PaymentResponse.Rejected(completion.EndToEndId ?? pendingAttempt.EndToEndId, txId, "INVALID_PAYMENT_ATTEMPT"));
+        }
+
+        var bill = await db.Bills.FirstOrDefaultAsync(x => x.Id == pendingAttempt.BillId, cancellationToken);
+        if (bill is null)
+        {
+            return Results.Ok(PaymentResponse.Rejected(completion.EndToEndId ?? pendingAttempt.EndToEndId, txId, "BILL_NOT_FOUND"));
+        }
+
+        var now = clock.UtcNow;
+        var paidAt = completion.PaidAt ?? completion.AcceptedAtUtc ?? completion.Date ?? now;
+        var payment = new BillPayment
+        {
+            Id = Guid.NewGuid(),
+            BillId = bill.Id,
+            AuthorityId = bill.AuthorityId,
+            SipsTransactionId = txId,
+            EndToEndId = FirstNonEmpty(completion.EndToEndId, initial.EndToEndId) ?? "",
+            OriginalMessageId = initial.OriginalMessageId ?? initial.MsgId ?? "",
+            TxId = txId,
+            Amount = GetPaymentAmount(initial),
+            Currency = initial.Currency ?? "",
+            Status = "ACSC",
+            PaidAt = paidAt,
+            PayerName = initial.Payer?.Name ?? initial.DebtorName ?? "",
+            PayerAccount = initial.Payer?.Account ?? initial.DebtorAccount ?? "",
+            PayerBankCode = initial.Payer?.BankCode ?? initial.FromBIC ?? "",
+            PayerBankName = initial.Payer?.BankName ?? "",
+            PayerClearingType = initial.Payer?.ClearingType ?? initial.DebtorAccountType ?? "",
+            PayeeName = initial.Payee?.Name ?? initial.CreditorName ?? "",
+            PayeeAccount = initial.Payee?.Account ?? initial.CreditorAccount ?? "",
+            PayeeBankCode = initial.Payee?.BankCode ?? initial.ToBIC ?? "",
+            PayeeBankName = initial.Payee?.BankName ?? "",
+            PayeeClearingType = initial.Payee?.ClearingType ?? initial.CreditorAccountType ?? "",
+            RawPayloadJson = JsonDefaults.Serialize(new { initial, completion }),
+            CreatedAt = now
+        };
+        db.BillPayments.Add(payment);
+
+        bill.StatusProjection = BillStatuses.Paid;
+        bill.UpdatedAt = now;
+
+        var paidAmount = GetPaymentAmount(initial);
+        var paidEvent = await hashChain.AppendAsync(db, bill, BillEventTypes.BillPaid, new { bill.Id, bill.UPR, txId, amount = paidAmount, currency = initial.Currency, paidAt }, "SipsConnect", initial.FromBIC ?? "", "SipsConnect", txId, cancellationToken);
+        await QueueCallbacksAsync(db, bill.AuthorityId, paidEvent, clock, cancellationToken);
+
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+        {
+            db.ChangeTracker.Clear();
+            existingPayment = await db.BillPayments.FirstOrDefaultAsync(x => x.SipsTransactionId == txId || x.TxId == txId, cancellationToken);
+            if (existingPayment is null)
+            {
+                throw;
+            }
+
+            return Results.Ok(PaymentResponse.Accepted(existingPayment.EndToEndId, txId, "Duplicate payment already processed"));
+        }
+
+        return Results.Ok(PaymentResponse.Accepted(payment.EndToEndId, txId, "Payment completed"));
+    }
+
     private static string? ValidateReturnContract(ReturnRequest request, string? originalTxId, string? reversalTxId)
     {
         if (originalTxId is null) return "MISSING_ORIGINAL_TX_ID";
@@ -529,6 +659,7 @@ public static class SipsConnectEndpoints
         if (bill.ExpiresAt <= now) return "EXPIRED";
         if (bill.StatusProjection == BillStatuses.Cancelled) return "CANCELLED";
         if (bill.StatusProjection == BillStatuses.Voided) return "VOIDED";
+        if (bill.StatusProjection == BillStatuses.PaymentInitiated) return "PAYMENT_IN_PROGRESS";
         if (bill.StatusProjection == BillStatuses.Paid) return "ALREADY_PAID";
         if (bill.StatusProjection == BillStatuses.Reversed) return "REVERSED";
         if (GetPaymentAmount(request) != bill.Amount) return "AMOUNT_MISMATCH";
