@@ -144,7 +144,7 @@ public static class SipsConnectEndpoints
                 return Results.Ok(PaymentResponse.Accepted(existingPayment.EndToEndId, paymentTxId, "Duplicate payment already processed"));
             }
 
-            var lookup = FirstNonEmpty(request.Upr, request.InvoiceId, request.EndToEndId, ParseBillReference(request.RemittanceInformation));
+            var lookup = FirstNonEmpty(request.Upr, request.InvoiceId, request.BillReference, request.EndToEndId, ParseBillReference(request.RemittanceInformation));
             var bill = lookup is null ? null : await FindBillAsync(db, lookup, cancellationToken);
             if (bill is null)
             {
@@ -180,7 +180,7 @@ public static class SipsConnectEndpoints
                 EndToEndId = paymentEndToEndId,
                 OriginalMessageId = request.OriginalMessageId ?? request.MsgId ?? "",
                 TxId = paymentTxId,
-                Amount = request.Amount,
+                Amount = GetPaymentAmount(request),
                 Currency = paymentCurrency,
                 Status = "ACSC",
                 PaidAt = paidAt,
@@ -210,8 +210,9 @@ public static class SipsConnectEndpoints
             bill.StatusProjection = BillStatuses.Paid;
             bill.UpdatedAt = now;
 
-            await hashChain.AppendAsync(db, bill, BillEventTypes.PaymentAccepted, new { bill.Id, bill.UPR, txId = paymentTxId, request.Amount, currency = paymentCurrency }, "SipsConnect", request.FromBIC ?? "", "SipsConnect", paymentTxId, cancellationToken);
-            var paidEvent = await hashChain.AppendAsync(db, bill, BillEventTypes.BillPaid, new { bill.Id, bill.UPR, txId = paymentTxId, request.Amount, currency = paymentCurrency, paidAt }, "SipsConnect", request.FromBIC ?? "", "SipsConnect", paymentTxId, cancellationToken);
+            var paidAmount = GetPaymentAmount(request);
+            await hashChain.AppendAsync(db, bill, BillEventTypes.PaymentAccepted, new { bill.Id, bill.UPR, txId = paymentTxId, amount = paidAmount, currency = paymentCurrency }, "SipsConnect", request.FromBIC ?? "", "SipsConnect", paymentTxId, cancellationToken);
+            var paidEvent = await hashChain.AppendAsync(db, bill, BillEventTypes.BillPaid, new { bill.Id, bill.UPR, txId = paymentTxId, amount = paidAmount, currency = paymentCurrency, paidAt }, "SipsConnect", request.FromBIC ?? "", "SipsConnect", paymentTxId, cancellationToken);
             await QueueCallbacksAsync(db, bill.AuthorityId, paidEvent, clock, cancellationToken);
             try
             {
@@ -472,7 +473,20 @@ public static class SipsConnectEndpoints
             account.ClearingType,
             descriptor.Descriptor,
             account.AccountName,
-            bill.Currency));
+            bill.Currency,
+            bill.ExternalInvoiceId,
+            bill.UPR,
+            bill.UPR,
+            account.MdaName,
+            bill.MdaCode,
+            bill.MdaCode,
+            bill.Amount,
+            bill.Currency,
+            account.AccountNumber,
+            account.AccountName,
+            account.ClearingType,
+            true,
+            true));
     }
 
     private static string? ValidatePaymentContract(PaymentRequest request, string? txId)
@@ -483,7 +497,7 @@ public static class SipsConnectEndpoints
         if (FirstNonEmpty(request.ToBIC, request.Payee?.BankCode, request.CreditorAgentBIC) is null) return "MISSING_TO_BIC";
         if (FirstNonEmpty(request.CategoryPurpose) is null) return "MISSING_CATEGORY_PURPOSE";
         if (!string.Equals(request.CategoryPurpose, "C2BBPT", StringComparison.OrdinalIgnoreCase)) return "INVALID_CATEGORY_PURPOSE";
-        if (request.Amount <= 0) return "INVALID_AMOUNT";
+        if (GetPaymentAmount(request) <= 0) return "INVALID_AMOUNT";
         if (FirstNonEmpty(request.Currency) is null) return "MISSING_CURRENCY";
         if (FirstNonEmpty(request.CreditorAccount, request.Payee?.Account) is null) return "MISSING_CREDITOR_ACCOUNT";
         if (FirstNonEmpty(request.CreditorName, request.Payee?.Name) is null) return "MISSING_CREDITOR_NAME";
@@ -510,12 +524,14 @@ public static class SipsConnectEndpoints
         if (bill.StatusProjection == BillStatuses.Voided) return "VOIDED";
         if (bill.StatusProjection == BillStatuses.Paid) return "ALREADY_PAID";
         if (bill.StatusProjection == BillStatuses.Reversed) return "REVERSED";
-        if (request.Amount != bill.Amount) return "AMOUNT_MISMATCH";
+        if (GetPaymentAmount(request) != bill.Amount) return "AMOUNT_MISMATCH";
         if (!string.Equals(request.Currency, bill.Currency, StringComparison.OrdinalIgnoreCase)) return "CURRENCY_MISMATCH";
         var creditorAccount = request.Payee?.Account ?? request.CreditorAccount;
         if (!string.Equals(creditorAccount, account.AccountNumber, StringComparison.OrdinalIgnoreCase)) return "CREDITOR_ACCOUNT_MISMATCH";
         return null;
     }
+
+    private static decimal GetPaymentAmount(PaymentRequest request) => request.Amount > 0 ? request.Amount : request.AmountPayable ?? 0m;
 
     private static string? GetNonPayableReason(Bill bill, DateTimeOffset now)
     {
@@ -697,7 +713,20 @@ public sealed record VerificationResponse(
     string AccountType,
     string Name,
     string Address,
-    string Currency)
+    string Currency,
+    string? InvoiceId = null,
+    string? Upr = null,
+    string? BillReference = null,
+    string? Mda = null,
+    string? MdaId = null,
+    string? MdaCode = null,
+    decimal? AmountPayable = null,
+    string? PaymentCurrency = null,
+    string? CreditorAccount = null,
+    string? CreditorName = null,
+    string? CreditorAccountType = null,
+    bool? AmountLocked = null,
+    bool? CreditorLocked = null)
 {
     public static VerificationResponse Rejected(string message) => new(false, message, "", "", "", "", "");
 }
@@ -714,7 +743,9 @@ public sealed record PaymentRequest(
     string? MsgId,
     string? Upr,
     string? InvoiceId,
+    string? BillReference,
     decimal Amount,
+    decimal? AmountPayable,
     string Currency,
     string? DebtorName,
     string? DebtorAccount,

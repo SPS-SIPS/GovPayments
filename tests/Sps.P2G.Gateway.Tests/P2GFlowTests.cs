@@ -37,6 +37,19 @@ public sealed class P2GFlowTests : IClassFixture<P2GWebApplicationFactory>
         Assert.True(verifyJson.RootElement.GetProperty("isVerified").GetBoolean());
         Assert.StartsWith("P2G1|SRA|TAX|INV123456|USD|125.00|", verifyJson.RootElement.GetProperty("name").GetString());
         Assert.Equal("1234567890", verifyJson.RootElement.GetProperty("accountNo").GetString());
+        Assert.Equal("INV123456", verifyJson.RootElement.GetProperty("invoiceId").GetString());
+        Assert.Equal(setup.Upr, verifyJson.RootElement.GetProperty("upr").GetString());
+        Assert.Equal(setup.Upr, verifyJson.RootElement.GetProperty("billReference").GetString());
+        Assert.Equal("Somali Revenue Authority", verifyJson.RootElement.GetProperty("mda").GetString());
+        Assert.Equal("SRA", verifyJson.RootElement.GetProperty("mdaCode").GetString());
+        Assert.Equal(125.00m, verifyJson.RootElement.GetProperty("amountPayable").GetDecimal());
+        Assert.Equal("USD", verifyJson.RootElement.GetProperty("currency").GetString());
+        Assert.Equal("USD", verifyJson.RootElement.GetProperty("paymentCurrency").GetString());
+        Assert.Equal("1234567890", verifyJson.RootElement.GetProperty("creditorAccount").GetString());
+        Assert.Equal("Somali Revenue Authority", verifyJson.RootElement.GetProperty("creditorName").GetString());
+        Assert.Equal("ACCT", verifyJson.RootElement.GetProperty("creditorAccountType").GetString());
+        Assert.True(verifyJson.RootElement.GetProperty("amountLocked").GetBoolean());
+        Assert.True(verifyJson.RootElement.GetProperty("creditorLocked").GetBoolean());
 
         using var paymentResponse = await PostInternalAsync(client, "/api/v1/sips-connect/payments/confirm", new
         {
@@ -68,6 +81,42 @@ public sealed class P2GFlowTests : IClassFixture<P2GWebApplicationFactory>
         billResponse.EnsureSuccessStatusCode();
         using var billJson = await JsonDocument.ParseAsync(await billResponse.Content.ReadAsStreamAsync());
         Assert.Equal("Paid", billJson.RootElement.GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public async Task PaymentConfirm_AcceptsNormalizedBillReferenceAndAmountPayableAliases()
+    {
+        var client = _factory.CreateClient();
+        var setup = await CreateAuthorityAccountAndBillAsync(client, invoiceId: "INV-NORMALIZED-001", upr: "SRA-TAX-2026-INV-NORMALIZED-001");
+
+        using var verifyResponse = await PostInternalAsync(client, "/api/v1/sips-connect/verify", new
+        {
+            invoiceIdOrUpr = setup.Upr,
+            agent = "SENDBICXXXX",
+            verificationId = "VER-NORMALIZED-001"
+        });
+        verifyResponse.EnsureSuccessStatusCode();
+
+        using var paymentResponse = await PostInternalAsync(client, "/api/v1/sips-connect/payments/confirm", new
+        {
+            fromBIC = "SENDBICXXXX",
+            toBIC = "RECVBICXXXX",
+            categoryPurpose = "C2BBPT",
+            txId = "TX-NORMALIZED-001",
+            endToEndId = "E2E-NORMALIZED-001",
+            billReference = setup.Upr,
+            amountPayable = 125.00m,
+            currency = "USD",
+            creditorName = "Somali Revenue Authority",
+            creditorAccount = "1234567890",
+            creditorAccountType = "ACCT",
+            remittanceInformation = $"BILL:{setup.Upr}",
+            msgDefIdr = "pacs.008"
+        });
+
+        paymentResponse.EnsureSuccessStatusCode();
+        using var paymentJson = await JsonDocument.ParseAsync(await paymentResponse.Content.ReadAsStreamAsync());
+        Assert.Equal("ACCP", paymentJson.RootElement.GetProperty("status").GetString());
     }
 
     [Fact]

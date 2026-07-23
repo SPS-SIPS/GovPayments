@@ -303,7 +303,7 @@ curl -s http://localhost:8080/realms/sps/protocol/openid-connect/token \
 8. `POST /api/v1/sips-connect/payments/reverse`
 9. `GET /api/v1/authorities/{authorityId}/bill-events?cursor=0`
 
-Verification returns the compact P2G descriptor in `CB_VerificationResponse.name`. Payment confirmation validates the request against the recorded bill and rejects amount, currency, creditor account, and duplicate-payment mismatches.
+Verification returns the compact P2G descriptor in `CB_VerificationResponse.name` and, for invoice-first lookups, normalized bill-payment fields such as `invoiceId`, `upr`, `billReference`, `mda`, `mdaCode`, `amountPayable`, `creditorAccount`, `creditorName`, `creditorAccountType`, `amountLocked`, and `creditorLocked`. Payment confirmation validates the request against the recorded bill and rejects amount, currency, creditor account, and duplicate-payment mismatches. It also accepts the normalized aliases `billReference` and `amountPayable` when SIPS Connect forwards the payment payload produced from verification.
 
 Authorities can void an unpaid bill before citizen payment by calling the void endpoint with a required description. Voided bills are no longer returned as payable by SIPS Connect verification, and payment confirmation rejects them with `VOIDED`.
 
