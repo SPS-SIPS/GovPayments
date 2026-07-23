@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -17,6 +18,8 @@ namespace Sps.P2G.Gateway.Modules.Verification;
 
 public static class SipsConnectEndpoints
 {
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> PaymentConfirmLocks = new(StringComparer.Ordinal);
+
     public static IEndpointRouteBuilder MapSipsConnectEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/v1/sips-connect")
@@ -100,6 +103,15 @@ public static class SipsConnectEndpoints
             }
 
             var txId = FirstNonEmpty(request.SipsTransactionId, request.TxId);
+            SemaphoreSlim? paymentConfirmLock = null;
+            if (txId is not null)
+            {
+                paymentConfirmLock = PaymentConfirmLocks.GetOrAdd(txId, _ => new SemaphoreSlim(1, 1));
+                await paymentConfirmLock.WaitAsync(cancellationToken);
+            }
+
+            try
+            {
             if (LooksLikeCompletionNotification(request))
             {
                 return await HandlePaymentCompletionAsync(request, txId, db, hashChain, clock, cancellationToken);
@@ -248,6 +260,11 @@ public static class SipsConnectEndpoints
             }
 
             return Results.Ok(PaymentResponse.Accepted(paymentEndToEndId, paymentTxId, "Invoice payment accepted"));
+            }
+            finally
+            {
+                paymentConfirmLock?.Release();
+            }
         });
 
         group.MapPost("/payments/reverse", async (
