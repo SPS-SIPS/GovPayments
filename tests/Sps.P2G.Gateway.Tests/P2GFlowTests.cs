@@ -55,7 +55,7 @@ public sealed class P2GFlowTests : IClassFixture<P2GWebApplicationFactory>
         {
             fromBIC = "SENDBICXXXX",
             toBIC = "RECVBICXXXX",
-            categoryPurpose = "C2BBPT",
+            categoryPurpose = "C2GCRT",
             txId = "TX-001",
             endToEndId = setup.Upr,
             amount = 125.00m,
@@ -101,7 +101,7 @@ public sealed class P2GFlowTests : IClassFixture<P2GWebApplicationFactory>
         {
             fromBIC = "SENDBICXXXX",
             toBIC = "RECVBICXXXX",
-            categoryPurpose = "C2BBPT",
+            categoryPurpose = "C2GCRT",
             txId = "TX-NORMALIZED-001",
             endToEndId = "E2E-NORMALIZED-001",
             billReference = setup.Upr,
@@ -236,7 +236,7 @@ public sealed class P2GFlowTests : IClassFixture<P2GWebApplicationFactory>
         {
             fromBIC = "SENDBICXXXX",
             toBIC = "RECVBICXXXX",
-            categoryPurpose = "C2BBPT",
+            categoryPurpose = "C2GCRT",
             txId = "TX-002",
             endToEndId = setup.Upr,
             amount = 124.99m,
@@ -305,7 +305,7 @@ public sealed class P2GFlowTests : IClassFixture<P2GWebApplicationFactory>
         {
             fromBIC = "SENDBICXXXX",
             toBIC = "RECVBICXXXX",
-            categoryPurpose = "C2BBPT",
+            categoryPurpose = "C2GCRT",
             txId = "TX-VOID-001",
             endToEndId = setup.Upr,
             amount = 125.00m,
@@ -359,7 +359,7 @@ public sealed class P2GFlowTests : IClassFixture<P2GWebApplicationFactory>
             fromBIC = "BANKBICXXXX",
             toBIC = "SIPSBICXXXX",
             localInstrument = "INST",
-            categoryPurpose = "C2BBPT",
+            categoryPurpose = "C2GCRT",
             txId = "TX-ADAPTER-001",
             endToEndId = setup.Upr,
             amount = 125.00m,
@@ -407,7 +407,7 @@ public sealed class P2GFlowTests : IClassFixture<P2GWebApplicationFactory>
         {
             Assert.Equal("BANKBICXXXX", statusJson.RootElement.GetProperty("fromBIC").GetString());
             Assert.Equal("SIPSBICXXXX", statusJson.RootElement.GetProperty("toBIC").GetString());
-            Assert.Equal("C2BBPT", statusJson.RootElement.GetProperty("categoryPurpose").GetString());
+            Assert.Equal("C2GCRT", statusJson.RootElement.GetProperty("categoryPurpose").GetString());
             Assert.Equal("TX-ADAPTER-001", statusJson.RootElement.GetProperty("txId").GetString());
             Assert.Equal(setup.Upr, statusJson.RootElement.GetProperty("endToEndId").GetString());
             Assert.Equal("ACSC", statusJson.RootElement.GetProperty("status").GetString());
@@ -521,7 +521,7 @@ public sealed class P2GFlowTests : IClassFixture<P2GWebApplicationFactory>
         {
             fromBIC = "BANKBICXXXX",
             toBIC = "SIPSBICXXXX",
-            categoryPurpose = "C2BBPT",
+            categoryPurpose = "C2GCRT",
             txId = "TX-CALLBACK-001",
             endToEndId = setup.Upr,
             amount = 125.00m,
@@ -561,7 +561,7 @@ public sealed class P2GFlowTests : IClassFixture<P2GWebApplicationFactory>
         {
             fromBIC = "BANKBICXXXX",
             toBIC = "SIPSBICXXXX",
-            categoryPurpose = "C2BBPT",
+            categoryPurpose = "C2GCRT",
             txId = "TX-IDEMP-001",
             endToEndId = setup.Upr,
             amount = 125.00m,
@@ -591,7 +591,7 @@ public sealed class P2GFlowTests : IClassFixture<P2GWebApplicationFactory>
         {
             fromBIC = "BANKBICXXXX",
             toBIC = "SIPSBICXXXX",
-            categoryPurpose = "C2BBPT",
+            categoryPurpose = "C2GCRT",
             txId = "TX-IDEMP-001",
             endToEndId = setup.Upr,
             amount = 126.00m,
@@ -625,7 +625,7 @@ public sealed class P2GFlowTests : IClassFixture<P2GWebApplicationFactory>
         {
             fromBIC = "BANKBICXXXX",
             toBIC = "SIPSBICXXXX",
-            categoryPurpose = "C2BBPT",
+            categoryPurpose = "C2GCRT",
             txId = "TX-REV-001",
             endToEndId = setup.Upr,
             amount = 125.00m,

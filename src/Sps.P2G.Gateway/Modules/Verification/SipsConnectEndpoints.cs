@@ -496,7 +496,7 @@ public static class SipsConnectEndpoints
         if (FirstNonEmpty(request.FromBIC, request.Payer?.BankCode, request.DebtorAgentBIC) is null) return "MISSING_FROM_BIC";
         if (FirstNonEmpty(request.ToBIC, request.Payee?.BankCode, request.CreditorAgentBIC) is null) return "MISSING_TO_BIC";
         if (FirstNonEmpty(request.CategoryPurpose) is null) return "MISSING_CATEGORY_PURPOSE";
-        if (!string.Equals(request.CategoryPurpose, "C2BBPT", StringComparison.OrdinalIgnoreCase)) return "INVALID_CATEGORY_PURPOSE";
+        if (!IsB2GCategoryPurpose(request.CategoryPurpose)) return "INVALID_CATEGORY_PURPOSE";
         if (GetPaymentAmount(request) <= 0) return "INVALID_AMOUNT";
         if (FirstNonEmpty(request.Currency) is null) return "MISSING_CURRENCY";
         if (FirstNonEmpty(request.CreditorAccount, request.Payee?.Account) is null) return "MISSING_CREDITOR_ACCOUNT";
@@ -506,6 +506,13 @@ public static class SipsConnectEndpoints
         if (FirstNonEmpty(request.MsgDefIdr) is null) return "MISSING_MSG_DEF_IDR";
         if (!request.MsgDefIdr!.StartsWith("pacs.008", StringComparison.OrdinalIgnoreCase)) return "INVALID_MSG_DEF_IDR";
         return null;
+    }
+
+    private static bool IsB2GCategoryPurpose(string? categoryPurpose)
+    {
+        return string.Equals(categoryPurpose, "C2GCRT", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(categoryPurpose, "C2GSQR", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(categoryPurpose, "C2GDQR", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string? ValidateReturnContract(ReturnRequest request, string? originalTxId, string? reversalTxId)
@@ -880,7 +887,7 @@ public sealed record PaymentStatusResponse(
         FromBIC: payment.PayerBankCode,
         ToBIC: payment.PayeeBankCode,
         LocalInstrument: "",
-        CategoryPurpose: "C2BBPT",
+        CategoryPurpose: "C2GCRT",
         TxId: payment.TxId,
         EndToEndId: payment.EndToEndId,
         Amount: payment.Amount,
@@ -920,7 +927,7 @@ public sealed record PaymentStatusResponse(
         FromBIC: requestingAgent ?? "",
         ToBIC: "",
         LocalInstrument: "",
-        CategoryPurpose: "C2BBPT",
+        CategoryPurpose: "C2GCRT",
         TxId: txId,
         EndToEndId: endToEndId,
         Amount: 0,

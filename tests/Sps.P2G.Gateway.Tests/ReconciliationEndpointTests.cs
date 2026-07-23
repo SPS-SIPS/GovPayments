@@ -24,7 +24,7 @@ public sealed class ReconciliationEndpointTests : IClassFixture<P2GWebApplicatio
         {
             fromBIC = "BANKBICXXXX",
             toBIC = "SIPSBICXXXX",
-            categoryPurpose = "C2BBPT",
+            categoryPurpose = "C2GCRT",
             txId = "TX-RECON-001",
             endToEndId = setup.Upr,
             amount = 125.00m,

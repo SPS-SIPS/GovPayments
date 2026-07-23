@@ -35,7 +35,7 @@ public sealed class P2GPostgresIntegrationTests : IClassFixture<PostgresP2GWebAp
         {
             fromBIC = "BANKBICXXXX",
             toBIC = "SIPSBICXXXX",
-            categoryPurpose = "C2BBPT",
+            categoryPurpose = "C2GCRT",
             txId = "TX-PG-001",
             endToEndId = setup.Upr,
             amount = 125.00m,
@@ -75,7 +75,7 @@ public sealed class P2GPostgresIntegrationTests : IClassFixture<PostgresP2GWebAp
             {
                 fromBIC = "BANKBICXXXX",
                 toBIC = "SIPSBICXXXX",
-                categoryPurpose = "C2BBPT",
+                categoryPurpose = "C2GCRT",
                 txId = "TX-PG-RACE-001",
                 endToEndId = setup.Upr,
                 amount = 125.00m,

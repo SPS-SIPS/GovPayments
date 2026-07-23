@@ -37,7 +37,7 @@ public sealed class SipsConnectContractTests : IClassFixture<P2GWebApplicationFa
         {
             fromBIC = "BANKBICXXXX",
             toBIC = "SIPSBICXXXX",
-            categoryPurpose = "C2BBPT",
+            categoryPurpose = "C2GCRT",
             txId = "TX-MISSING-MSGDEF",
             endToEndId = "SRA-TAX-2026-MISSING",
             amount = 125.00m,
@@ -53,6 +53,36 @@ public sealed class SipsConnectContractTests : IClassFixture<P2GWebApplicationFa
         Assert.Equal("RJCT", json.RootElement.GetProperty("status").GetString());
         Assert.Equal("MISSING_MSG_DEF_IDR", json.RootElement.GetProperty("reason").GetString());
         Assert.Equal("TX-MISSING-MSGDEF", json.RootElement.GetProperty("txId").GetString());
+    }
+
+    [Theory]
+    [InlineData("C2GCRT")]
+    [InlineData("C2GSQR")]
+    [InlineData("C2GDQR")]
+    public async Task PaymentConfirm_AcceptsB2GCategoryPurposes(string categoryPurpose)
+    {
+        var client = _factory.CreateClient();
+
+        using var response = await P2GFlowTests.PostInternalAsync(client, "/api/v1/sips-connect/payments/confirm", new
+        {
+            fromBIC = "BANKBICXXXX",
+            toBIC = "SIPSBICXXXX",
+            categoryPurpose,
+            txId = $"TX-{categoryPurpose}",
+            endToEndId = $"SRA-TAX-2026-{categoryPurpose}",
+            amount = 125.00m,
+            currency = "USD",
+            creditorName = "Somali Revenue Authority",
+            creditorAccount = "1234567890",
+            creditorAccountType = "ACCT",
+            remittanceInformation = $"BILL:SRA-TAX-2026-{categoryPurpose}"
+        });
+
+        response.EnsureSuccessStatusCode();
+        using var json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+        Assert.Equal("RJCT", json.RootElement.GetProperty("status").GetString());
+        Assert.Equal("MISSING_MSG_DEF_IDR", json.RootElement.GetProperty("reason").GetString());
+        Assert.Equal($"TX-{categoryPurpose}", json.RootElement.GetProperty("txId").GetString());
     }
 
     [Fact]

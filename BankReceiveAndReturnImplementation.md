@@ -243,7 +243,7 @@ Required `CB_PaymentRequest` values:
 
 | Field | Required P2G value |
 | --- | --- |
-| `categoryPurpose` | `C2BBPT` |
+| `categoryPurpose` | B2G category: `C2GCRT`, `C2GSQR`, or `C2GDQR` |
 | `endToEndId` | UPR or gateway bill ID. |
 | `amount` | Verified bill amount. |
 | `currency` | Verified bill currency. |

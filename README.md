@@ -325,7 +325,7 @@ PATCH /api/v1/dashboard/authorities/{authorityId}/revenue-accounts/{accountId}
 SIPS Connect endpoints validate the P2G adapter contract before bill lookup or posting:
 
 - verification requires an invoice/bill reference, sending agent, and verification ID
-- payment confirmation requires `txId`, `endToEndId`, `fromBIC`, `toBIC`, `categoryPurpose=C2BBPT`, positive amount, currency, creditor account/name/account type, structured remittance, and `msgDefIdr=pacs.008`
+- payment confirmation requires `txId`, `endToEndId`, `fromBIC`, `toBIC`, B2G `categoryPurpose` (`C2GCRT`, `C2GSQR`, or `C2GDQR`), positive amount, currency, creditor account/name/account type, structured remittance, and `msgDefIdr=pacs.008`
 - returns require original transaction ID, `endToEndId`, return ID, and reason
 - status requests require `txId` or `endToEndId`
 
