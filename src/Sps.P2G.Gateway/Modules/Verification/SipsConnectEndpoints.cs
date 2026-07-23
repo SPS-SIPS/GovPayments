@@ -173,6 +173,15 @@ public static class SipsConnectEndpoints
             var validationError = ValidatePayment(request, bill, account, clock.UtcNow);
             if (validationError is not null)
             {
+                if (validationError == "PAYMENT_IN_PROGRESS")
+                {
+                    var pendingDuplicateResponse = await TryBuildPendingPaymentResponseAsync(db, paymentTxId, payloadHash, paymentEndToEndId, cancellationToken);
+                    if (pendingDuplicateResponse is not null)
+                    {
+                        return Results.Ok(pendingDuplicateResponse);
+                    }
+                }
+
                 var duplicateResponse = await TryBuildDuplicatePaymentResponseAsync(db, paymentTxId, payloadHash, paymentEndToEndId, cancellationToken);
                 if (duplicateResponse is not null)
                 {
@@ -766,6 +775,27 @@ public static class SipsConnectEndpoints
     {
         return JsonDefaults.Sha256(duplicatePayment.RawPayloadJson) == payloadHash
             ? PaymentResponse.Accepted(duplicatePayment.EndToEndId, paymentTxId, "Duplicate payment already processed")
+            : PaymentResponse.Rejected(paymentEndToEndId, paymentTxId, "DUPLICATE_TX_DIFFERENT_PAYLOAD");
+    }
+
+    private static async Task<PaymentResponse?> TryBuildPendingPaymentResponseAsync(
+        GatewayDbContext db,
+        string paymentTxId,
+        string payloadHash,
+        string paymentEndToEndId,
+        CancellationToken cancellationToken)
+    {
+        var pendingAttempt = await db.BillPaymentAttempts
+            .Where(x => x.TxId == paymentTxId && x.Status == "ACSC" && x.Reason == "PAYMENT_ACCEPTED_PENDING_COMPLETION")
+            .OrderByDescending(x => x.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (pendingAttempt is null)
+        {
+            return null;
+        }
+
+        return JsonDefaults.Sha256(pendingAttempt.RawPayloadJson) == payloadHash
+            ? PaymentResponse.Accepted(pendingAttempt.EndToEndId, paymentTxId, "Duplicate payment accepted; awaiting completion notification")
             : PaymentResponse.Rejected(paymentEndToEndId, paymentTxId, "DUPLICATE_TX_DIFFERENT_PAYLOAD");
     }
 
