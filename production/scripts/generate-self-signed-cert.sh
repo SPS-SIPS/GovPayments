@@ -4,7 +4,7 @@ set -eu
 SCRIPT_DIR="$(cd -- "$(dirname -- "$0")" && pwd)"
 CERT_DIR="${CERT_DIR:-$(cd -- "$SCRIPT_DIR/.." && pwd)/certs}"
 CERT_NAME="${CERT_NAME:-sps-p2g}"
-CERT_HOST_IP="${CERT_HOST_IP:-10.128.200.244}"
+CERT_HOST_IP="${CERT_HOST_IP:-127.0.0.1}"
 CERT_DNS_NAMES="${CERT_DNS_NAMES:-localhost,sps-p2g-gateway,sps-p2g-openbao}"
 CERT_DAYS="${CERT_DAYS:-825}"
 

@@ -28,14 +28,14 @@ docker compose pull
 docker compose up -d
 ```
 
-The production bundle pulls `ghcr.io/hanadderia/sps-p2g-gateway:${GATEWAY_IMAGE_TAG:-latest}` and stores generated runtime data under `production/openbao`, `production/postgres`, and `production/gateway`. The OpenBao bootstrap job writes runtime KV values from `production/.env` each time it runs, so treat `.env` as the source of truth for those seeded settings.
+The production bundle pulls `ghcr.io/sps-sips/govpayments:${GATEWAY_IMAGE_TAG:-latest}` and stores generated runtime data under `production/openbao`, `production/postgres`, and `production/gateway`. The OpenBao bootstrap job writes runtime KV values from `production/.env` each time it runs, so treat `.env` as the source of truth for those seeded settings.
 
-Default production host bindings:
+Production host bindings are deployment-specific:
 
 ```text
-Gateway: https://10.128.200.244:8991
-OpenBao: https://10.128.200.244:8992
-Postgres: 10.128.200.244:5435
+Gateway: https://<gateway-host>:<gateway-https-port>
+OpenBao: https://<openbao-host>:<openbao-https-port>
+Postgres: <postgres-host>:<postgres-port>
 ```
 
 The production compose bundle includes an HTTPS edge proxy and a `cert-init` job that creates `production/certs/sps-p2g.crt` and `production/certs/sps-p2g.key` when they are missing. Replace the self-signed certificate with a CA-issued certificate when one is available.
@@ -132,13 +132,13 @@ For each authority:
 - Add an audience mapper for `sps-p2g-gateway`.
 - Store the client secret in the authority-side integration secret store, not in this gateway database.
 
-SIPS Connect uses one confidential client:
+SIPS Connect uses one confidential client configured by the deployment:
 
-- `clientId`: `sips-connect-p2g`
-- role: `p2g-sips-connect`
-- audience: `sps-p2g-gateway`
+- client ID: private deployment value
+- role: configured `P2G_KEYCLOAK_SIPS_CONNECT_ROLE`
+- audience: configured `P2G_KEYCLOAK_AUDIENCE`
 
-Outbound calls from this gateway to SIPS Connect UAT are configured separately through the production `.env` `SIPS_CONNECT_*` variables. The OpenBao bootstrap maps them to the gateway `SipsConnectClient` configuration section:
+Outbound calls from this gateway to SIPS Connect are configured separately through private deployment `.env` `SIPS_CONNECT_*` variables. The OpenBao bootstrap maps them to the gateway `SipsConnectClient` configuration section:
 
 ```text
 SipsConnectClient:Enabled

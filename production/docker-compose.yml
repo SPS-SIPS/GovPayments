@@ -5,7 +5,7 @@ services:
     image: alpine:3.20
     environment:
       CERT_DIR: /certs
-      CERT_HOST_IP: ${HOST_IP:-10.128.200.244}
+      CERT_HOST_IP: ${HOST_IP:-127.0.0.1}
       CERT_DNS_NAMES: ${CERT_DNS_NAMES:-localhost,sps-p2g-gateway,sps-p2g-openbao}
       CERT_DAYS: ${CERT_DAYS:-825}
     volumes:
@@ -26,8 +26,8 @@ services:
         condition: service_healthy
     restart: unless-stopped
     ports:
-      - "${HOST_IP:-10.128.200.244}:${GATEWAY_HOST_PORT:-8991}:8443"
-      - "${HOST_IP:-10.128.200.244}:${OPENBAO_HOST_PORT:-8992}:9443"
+      - "${HOST_IP:-127.0.0.1}:${GATEWAY_HOST_PORT:-8443}:8443"
+      - "${HOST_IP:-127.0.0.1}:${OPENBAO_HOST_PORT:-9443}:9443"
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./certs:/etc/nginx/certs:ro
@@ -46,7 +46,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-this-postgres-password}
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
-      - "${HOST_IP:-10.128.200.244}:${POSTGRES_HOST_PORT:-5435}:5432"
+      - "${HOST_IP:-127.0.0.1}:${POSTGRES_HOST_PORT:-5432}:5432"
     volumes:
       - ./postgres/data:/var/lib/postgresql/data
     healthcheck:
@@ -116,15 +116,15 @@ services:
       P2G_KEYCLOAK_AUDIENCE: ${P2G_KEYCLOAK_AUDIENCE:-sps-p2g-gateway}
       P2G_KEYCLOAK_REQUIRE_HTTPS_METADATA: ${P2G_KEYCLOAK_REQUIRE_HTTPS_METADATA:-true}
       P2G_KEYCLOAK_REVENUE_AUTHORITY_ROLE: ${P2G_KEYCLOAK_REVENUE_AUTHORITY_ROLE:-p2g-authority}
-      P2G_KEYCLOAK_SIPS_CONNECT_ROLE: ${P2G_KEYCLOAK_SIPS_CONNECT_ROLE:-p2g-sips-connect}
+      P2G_KEYCLOAK_SIPS_CONNECT_ROLE: ${P2G_KEYCLOAK_SIPS_CONNECT_ROLE:-}
       P2G_KEYCLOAK_DASHBOARD_ROLE: ${P2G_KEYCLOAK_DASHBOARD_ROLE:-p2g-dashboard}
       P2G_KEYCLOAK_CONFIGURATION_ADMIN_ROLE: ${P2G_KEYCLOAK_CONFIGURATION_ADMIN_ROLE:-p2g-configuration-admin}
-      P2G_KEYCLOAK_SIPS_CONNECT_CLIENT_ID: ${P2G_KEYCLOAK_SIPS_CONNECT_CLIENT_ID:-sips-connect-p2g}
+      P2G_KEYCLOAK_SIPS_CONNECT_CLIENT_ID: ${P2G_KEYCLOAK_SIPS_CONNECT_CLIENT_ID:-}
       SIPS_CONNECT_CLIENT_ENABLED: ${SIPS_CONNECT_CLIENT_ENABLED:-false}
-      SIPS_CONNECT_BASE_URL: ${SIPS_CONNECT_BASE_URL:-https://sips-connect-uat.example}
+      SIPS_CONNECT_BASE_URL: ${SIPS_CONNECT_BASE_URL:-https://sips-connect.example}
       SIPS_CONNECT_TOKEN_ENDPOINT: ${SIPS_CONNECT_TOKEN_ENDPOINT:-https://keycloak.example/realms/sips/protocol/openid-connect/token}
-      SIPS_CONNECT_CLIENT_ID: ${SIPS_CONNECT_CLIENT_ID:-sps-p2g-gateway}
-      SIPS_CONNECT_CLIENT_SECRET: ${SIPS_CONNECT_CLIENT_SECRET:-change-this-sips-connect-client-secret}
+      SIPS_CONNECT_CLIENT_ID: ${SIPS_CONNECT_CLIENT_ID:-}
+      SIPS_CONNECT_CLIENT_SECRET: ${SIPS_CONNECT_CLIENT_SECRET:-}
       SIPS_CONNECT_SCOPE: ${SIPS_CONNECT_SCOPE:-}
       SIPS_CONNECT_PAYMENT_STATUS_PATH: ${SIPS_CONNECT_PAYMENT_STATUS_PATH:-/api/v1/payments/status}
       SIPS_CONNECT_REQUEST_TIMEOUT_SECONDS: ${SIPS_CONNECT_REQUEST_TIMEOUT_SECONDS:-30}
@@ -142,7 +142,7 @@ services:
     restart: "no"
 
   gateway:
-    image: ${GATEWAY_IMAGE:-ghcr.io/hanadderia/sps-p2g-gateway}:${GATEWAY_IMAGE_TAG:-latest}
+    image: ${GATEWAY_IMAGE:-ghcr.io/sps-sips/govpayments}:${GATEWAY_IMAGE_TAG:-latest}
     pull_policy: always
     depends_on:
       postgres:

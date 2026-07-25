@@ -82,10 +82,10 @@ bao kv put "$KV_MOUNT/$SECRET_PATH" \
     Keycloak__Audience="${P2G_KEYCLOAK_AUDIENCE:-sps-p2g-gateway}" \
     Keycloak__RequireHttpsMetadata="${P2G_KEYCLOAK_REQUIRE_HTTPS_METADATA:-false}" \
     Keycloak__RevenueAuthorityRole="${P2G_KEYCLOAK_REVENUE_AUTHORITY_ROLE:-p2g-authority}" \
-    Keycloak__SipsConnectRole="${P2G_KEYCLOAK_SIPS_CONNECT_ROLE:-p2g-sips-connect}" \
+    Keycloak__SipsConnectRole="${P2G_KEYCLOAK_SIPS_CONNECT_ROLE:-}" \
     Keycloak__DashboardRole="${P2G_KEYCLOAK_DASHBOARD_ROLE:-p2g-dashboard}" \
     Keycloak__ConfigurationAdminRole="${P2G_KEYCLOAK_CONFIGURATION_ADMIN_ROLE:-p2g-configuration-admin}" \
-    Keycloak__SipsConnectClientId="${P2G_KEYCLOAK_SIPS_CONNECT_CLIENT_ID:-sips-connect-p2g}" \
+    Keycloak__SipsConnectClientId="${P2G_KEYCLOAK_SIPS_CONNECT_CLIENT_ID:-}" \
     SipsConnectClient__Enabled="${SIPS_CONNECT_CLIENT_ENABLED:-false}" \
     SipsConnectClient__BaseUrl="${SIPS_CONNECT_BASE_URL:-}" \
     SipsConnectClient__TokenEndpoint="${SIPS_CONNECT_TOKEN_ENDPOINT:-}" \

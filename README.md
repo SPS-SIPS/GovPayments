@@ -171,17 +171,18 @@ docker compose pull
 docker compose up -d
 ```
 
-The gateway image defaults to `ghcr.io/hanadderia/sps-p2g-gateway:latest`. Set `GATEWAY_IMAGE_TAG` in `production/.env` to deploy a pinned commit SHA. See `production/README.md` for required secrets, directories, and runtime checks.
+The gateway image defaults to `ghcr.io/sps-sips/govpayments:latest`. Set `GATEWAY_IMAGE_TAG` in `production/.env` to deploy a pinned commit SHA. See `production/README.md` for required secrets, directories, and runtime checks.
 
-Default production host bindings use HTTPS for the public services:
+Production host bindings are environment-specific and must be supplied through `production/.env`:
 
 ```text
-Gateway: https://10.128.200.244:8991
-OpenBao: https://10.128.200.244:8992
-Postgres: 10.128.200.244:5435
+HOST_IP=<deployment-host-or-interface>
+GATEWAY_HOST_PORT=<gateway-https-port>
+OPENBAO_HOST_PORT=<openbao-https-port>
+POSTGRES_HOST_PORT=<postgres-port-if-exposed>
 ```
 
-SIPS Connect UAT should call the gateway at `https://10.128.200.244:8991/api/v1/sips-connect/*` with a Keycloak token for `P2G_KEYCLOAK_SIPS_CONNECT_CLIENT_ID`. Outbound SIPS Connect status-check settings live in the production `.env` as `SIPS_CONNECT_*` variables and are loaded into OpenBao by the bootstrap job.
+SIPS Connect routing details, client identifiers, and outbound status-check settings are deployment-specific. Keep them in private deployment configuration as `P2G_KEYCLOAK_*` and `SIPS_CONNECT_*` values; the OpenBao bootstrap job loads those values into runtime secrets.
 
 ## Auth Headers
 
@@ -230,7 +231,7 @@ Recommended realm model:
 - Dashboard: human users authenticate with the OIDC authorization-code flow and receive `p2g-dashboard`.
 - Configuration admins: portal users who create MDA/service revenue-account mappings receive `p2g-configuration-admin`.
 - Revenue Authorities: one confidential client per authority, with service accounts enabled. The Keycloak `client_id` should match `RevenueAuthority.Code`, and the client should receive `p2g-authority`.
-- SIPS Connect: one confidential client, default `sips-connect-p2g`, with `p2g-sips-connect`.
+- SIPS Connect: one confidential client configured through `P2G_KEYCLOAK_SIPS_CONNECT_CLIENT_ID` and `P2G_KEYCLOAK_SIPS_CONNECT_ROLE`.
 - Service-account and dashboard tokens must include the API audience `sps-p2g-gateway`. The sample realm includes explicit audience mappers for the starter clients.
 
 Enable JWT validation:
@@ -271,24 +272,19 @@ export Auth__AllowSipsConnectInternalKeyFallback=false
 In strict mode:
 
 - Authority APIs require a bearer token with `p2g-authority`; token `azp` / `client_id` must match `RevenueAuthority.Code`. Client roles are accepted only from the calling authority client; realm role assignment is also supported.
-- SIPS Connect APIs require the configured `sips-connect-p2g` client and `p2g-sips-connect`.
+- SIPS Connect APIs require the configured SIPS Connect client and role.
 - Dashboard APIs require `p2g-dashboard`.
 - MDA/service revenue-account configuration writes require `p2g-configuration-admin`.
 
-The local compose file imports a starter realm from `infra/keycloak/realm-sps.json` with:
-
-- `sips-connect-p2g` confidential client, secret `change-me-sips-connect-secret`
-- `SRA` confidential client, secret `change-me-sra-secret`
-- `p2g-dashboard` public dashboard client
-- `dashboard-admin` temporary password `admin`, with dashboard and configuration-admin roles
+The local compose file imports a starter realm from `infra/keycloak/realm-sps.json` with demo-only clients and credentials for isolated development. Replace all starter credentials before any shared environment is exposed.
 
 Example client-credentials token request:
 
 ```bash
 curl -s http://localhost:8080/realms/sps/protocol/openid-connect/token \
   -d grant_type=client_credentials \
-  -d client_id=SRA \
-  -d client_secret=change-me-sra-secret
+  -d client_id=<authority-client-id> \
+  -d client_secret=<authority-client-secret>
 ```
 
 ## Core Flow

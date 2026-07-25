@@ -7,7 +7,7 @@ This directory is a production/UAT deployment bundle for hosts that should consu
 The gateway service pulls:
 
 ```text
-ghcr.io/hanadderia/sps-p2g-gateway:${GATEWAY_IMAGE_TAG:-latest}
+ghcr.io/sps-sips/govpayments:${GATEWAY_IMAGE_TAG:-latest}
 ```
 
 If the GitHub package is private, authenticate the deployment host first:
@@ -33,16 +33,16 @@ Edit `.env` before startup. At minimum replace:
 - `SIPS_CONNECT_TOKEN_ENDPOINT`
 - `SIPS_CONNECT_CLIENT_ID`
 - `SIPS_CONNECT_CLIENT_SECRET`
-- `SIPS_CONNECT_CLIENT_ENABLED=true` after the real SIPS UAT values are configured
+- `SIPS_CONNECT_CLIENT_ENABLED=true` after the real SIPS environment values are configured
 - `GATEWAY_IMAGE_TAG` when deploying a pinned commit SHA instead of `latest`
 
-The default host bindings are:
+The sample host bindings are localhost-only. Replace them in private deployment configuration:
 
 ```text
-HOST_IP=10.128.200.244
-GATEWAY_HOST_PORT=8991
-POSTGRES_HOST_PORT=5435
-OPENBAO_HOST_PORT=8992
+HOST_IP=127.0.0.1
+GATEWAY_HOST_PORT=8443
+POSTGRES_HOST_PORT=5432
+OPENBAO_HOST_PORT=9443
 ```
 
 Start the stack:
@@ -54,19 +54,19 @@ docker compose up -d
 
 The production compose stack starts Postgres, OpenBao, an idempotent OpenBao bootstrap job, the gateway, and an HTTPS edge proxy. Keycloak is expected to be an external production identity service; its issuer URL is written to OpenBao from `.env`.
 
-## Keycloak and SIPS Connect
+## Keycloak And SIPS Connect
 
-SIPS Connect UAT calls this gateway with Keycloak bearer tokens:
+SIPS Connect calls this gateway with Keycloak bearer tokens. Keep environment URLs, client identifiers, and roles in private deployment configuration:
 
 ```text
-Gateway base URL: https://10.128.200.244:8991
+Gateway base URL: private deployment value
 Keycloak issuer:  P2G_KEYCLOAK_AUTHORITY
 API audience:     P2G_KEYCLOAK_AUDIENCE
-SIPS client id:   P2G_KEYCLOAK_SIPS_CONNECT_CLIENT_ID
+SIPS client id:   private deployment value
 Required role:    P2G_KEYCLOAK_SIPS_CONNECT_ROLE
 ```
 
-When this gateway calls SIPS Connect UAT for outbound operations such as payment status checks, it uses:
+When this gateway calls SIPS Connect for outbound operations such as payment status checks, it uses:
 
 ```text
 SIPS_CONNECT_CLIENT_ENABLED
@@ -90,7 +90,7 @@ The `cert-init` service generates a self-signed certificate on startup when `cer
 You can also generate it manually:
 
 ```bash
-HOST_IP=10.128.200.244 ./scripts/generate-self-signed-cert.sh
+HOST_IP=<deployment-host-or-interface> ./scripts/generate-self-signed-cert.sh
 ```
 
 Clients must trust `certs/sps-p2g.crt` or call the endpoints with certificate verification disabled while this self-signed certificate is in use.
@@ -117,12 +117,12 @@ The generated contents are ignored by git. Back up `openbao/keys`, `openbao/data
 
 ## Ports
 
-Defaults:
+Sample localhost defaults:
 
 ```text
-Gateway: https://10.128.200.244:8991
-OpenBao: https://10.128.200.244:8992
-Postgres: 10.128.200.244:5435
+Gateway: https://127.0.0.1:8443
+OpenBao: https://127.0.0.1:9443
+Postgres: 127.0.0.1:5432
 ```
 
 Override `HOST_IP`, `GATEWAY_HOST_PORT`, `OPENBAO_HOST_PORT`, and `POSTGRES_HOST_PORT` in `.env` when needed.
@@ -131,7 +131,7 @@ Override `HOST_IP`, `GATEWAY_HOST_PORT`, `OPENBAO_HOST_PORT`, and `POSTGRES_HOST
 
 ```bash
 docker compose ps
-curl -k -fsS https://${HOST_IP:-10.128.200.244}:${GATEWAY_HOST_PORT:-8991}/health/ready
-curl -k -fsS https://${HOST_IP:-10.128.200.244}:${OPENBAO_HOST_PORT:-8992}/v1/sys/health
+curl -k -fsS https://${HOST_IP:-127.0.0.1}:${GATEWAY_HOST_PORT:-8443}/health/ready
+curl -k -fsS https://${HOST_IP:-127.0.0.1}:${OPENBAO_HOST_PORT:-9443}/v1/sys/health
 docker compose logs --tail=120 gateway openbao-bootstrap edge-proxy
 ```

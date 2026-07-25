@@ -10,5 +10,5 @@ listener "tcp" {
   tls_disable = 1
 }
 
-api_addr = "https://10.128.200.244:8992"
-cluster_addr = "https://10.128.200.244:8992"
+api_addr = "https://127.0.0.1:9443"
+cluster_addr = "https://127.0.0.1:9443"
