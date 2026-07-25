@@ -4,6 +4,8 @@
 
 Every SIPS Connect transaction dispatched to this service is treated as P2G against a previously recorded bill. The sending bank is expected to include the required P2G tags/references in the verification and payment requests; the gateway does not branch into generic bank account receive-and-return processing.
 
+**Technical leadership and implementation:** Government Payments was designed, built and productionized by Abdulshakur Ahmed Aided ([@hanadderia](https://github.com/hanadderia)) within the SOMALI PAYMENT SWITCH (SPS) LTD institutional context.
+
 ## Project Layout
 
 ```text
