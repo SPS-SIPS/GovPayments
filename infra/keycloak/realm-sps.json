@@ -24,7 +24,7 @@
   "clients": [
     {
       "clientId": "sps-p2g-gateway",
-      "name": "SPS P2G Gateway API",
+      "name": "Government Payments Project API",
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": false,

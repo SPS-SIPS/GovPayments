@@ -12,7 +12,7 @@ public static class HealthEndpoints
         app.MapGet("/health/live", () => Results.Ok(new
         {
             status = "Healthy",
-            service = "Sps.P2G.Gateway"
+            service = "Government Payments Project"
         }))
             .WithName("HealthLive")
             .WithTags("Health");

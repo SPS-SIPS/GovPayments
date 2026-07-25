@@ -1,6 +1,6 @@
-# SPS P2G Gateway Operations Runbook
+# Government Payments Project Operations Runbook
 
-This runbook covers the minimum production operations needed to keep the SPS P2G Gateway healthy.
+This runbook covers the minimum production operations needed to keep the Government Payments Project healthy.
 
 ## First Checks
 

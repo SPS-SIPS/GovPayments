@@ -87,7 +87,7 @@ path \"$TRANSIT_MOUNT/decrypt/$KEY_NAME\" {
 
 echo "$POLICY_HCL" | bao_exec_stdin policy write "$POLICY_NAME" -
 
-echo "Creating client token for SPS P2G Gateway..."
+echo "Creating client token for Government Payments Project..."
 CLIENT_TOKEN="$(bao_exec token create -policy="$POLICY_NAME" -period=720h -field=token)"
 
 echo "Verifying token can read the runtime config path once it exists..."

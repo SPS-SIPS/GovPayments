@@ -1,6 +1,6 @@
-# SPS P2G OpenBao Security Tier
+# Government Payments Project OpenBao Security Tier
 
-This folder adapts the Helios OpenBao pattern for the SPS P2G Gateway.
+This folder adapts the Helios OpenBao pattern for the Government Payments Project.
 
 OpenBao is used for deployment-grade runtime configuration and secret handling. The gateway can load KV v2 values from OpenBao during startup when `OpenBao__Enabled=true`.
 

@@ -1,6 +1,6 @@
-# SPS P2G Gateway
+# Government Payments Project
 
-`Sps.P2G.Gateway` is the SPS-hosted Government Invoice Gateway for invoice-first P2G payments.
+`Sps.P2G.Gateway` is the SPS-hosted Government Payments Project gateway for invoice-first government payments.
 
 Every SIPS Connect transaction dispatched to this service is treated as P2G against a previously recorded bill. The sending bank is expected to include the required P2G tags/references in the verification and payment requests; the gateway does not branch into generic bank account receive-and-return processing.
 
@@ -119,7 +119,7 @@ The generator writes `artifacts/openapi/openapi.json` and `artifacts/openapi/ope
 
 ## OpenBao Secrets
 
-Production deployments load runtime secrets from OpenBao KV v2 before startup validation runs. The OpenBao security bundle lives under `security/openbao` and is adapted from the Helios OpenBao pattern with SPS P2G service names.
+Production deployments load runtime secrets from OpenBao KV v2 before startup validation runs. The OpenBao security bundle lives under `security/openbao` and is adapted from the Helios OpenBao pattern with Government Payments Project service names.
 
 The local/UAT compose stack bootstraps OpenBao automatically:
 

@@ -1,6 +1,6 @@
 # iTax Revenue Authority Integration Guide
 
-This guide describes how iTax integrates with the SPS P2G Gateway as a Revenue Authority system.
+This guide describes how iTax integrates with the Government Payments Project as a Revenue Authority system.
 
 It intentionally does not include request or response payload examples. Use the generated OpenAPI file for exact schemas, required fields, response structures, and validation details:
 
@@ -16,7 +16,7 @@ make openapi
 
 ## Integration Scope
 
-iTax is responsible for creating and managing recorded government invoices. SPS P2G Gateway is responsible for making those invoices payable through SIPS Connect, recording payment outcomes, exposing lifecycle events, delivering callbacks, and supporting reconciliation.
+iTax is responsible for creating and managing recorded government invoices. Government Payments Project is responsible for making those invoices payable through SIPS Connect, recording payment outcomes, exposing lifecycle events, delivering callbacks, and supporting reconciliation.
 
 Every payable transaction in this integration is invoice-first P2G. A bank payment must resolve to a bill that iTax already created in the gateway.
 
@@ -537,7 +537,7 @@ iTax observes the outcome through:
 1. Receive SPS-provided `authorityId` and production credentials.
 2. Confirm revenue-account configuration for every payable MDA/service/currency combination.
 3. Generate or receive invoice data inside iTax.
-4. Create the invoice in the SPS P2G Gateway.
+4. Create the invoice in the Government Payments Project.
 5. Store the returned gateway bill ID alongside the iTax invoice record.
 6. Expose the UPR or invoice reference to the payer.
 7. Poll bill events or configure callbacks for lifecycle updates.

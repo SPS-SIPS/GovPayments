@@ -24,7 +24,7 @@ public sealed class HealthEndpointTests
         response.EnsureSuccessStatusCode();
         using var json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
         Assert.Equal("Healthy", json.RootElement.GetProperty("status").GetString());
-        Assert.Equal("Sps.P2G.Gateway", json.RootElement.GetProperty("service").GetString());
+        Assert.Equal("Government Payments Project", json.RootElement.GetProperty("service").GetString());
     }
 
     [Fact]

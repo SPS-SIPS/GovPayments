@@ -1,4 +1,4 @@
-# SPS P2G Production Compose
+# Government Payments Project Production Compose
 
 This directory is a production/UAT deployment bundle for hosts that should consume the published GitHub Container Registry image instead of building the gateway locally.
 

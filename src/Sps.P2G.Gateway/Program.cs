@@ -228,7 +228,7 @@ app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapGet("/", () => Results.Ok(new { service = "Sps.P2G.Gateway", status = "ok" }));
+app.MapGet("/", () => Results.Ok(new { service = "Government Payments Project", status = "ok" }));
 app.MapOpenApi();
 app.MapHealthEndpoints();
 app.MapMetricsEndpoints();

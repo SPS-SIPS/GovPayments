@@ -18,7 +18,7 @@ DOTNET_EF := dotnet tool run dotnet-ef --
 
 .PHONY: help
 help:
-	@awk 'BEGIN {FS = ":.*##"; printf "\nSPS P2G Gateway commands:\n\n"} /^[a-zA-Z0-9_.-]+:.*##/ {printf "  \033[36m%-24s\033[0m %s\n", $$1, $$2} END {printf "\n"}' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*##"; printf "\nGovernment Payments Project commands:\n\n"} /^[a-zA-Z0-9_.-]+:.*##/ {printf "  \033[36m%-24s\033[0m %s\n", $$1, $$2} END {printf "\n"}' $(MAKEFILE_LIST)
 
 .PHONY: tool-restore
 tool-restore: ## Restore local .NET tools, including dotnet-ef.
