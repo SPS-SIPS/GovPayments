@@ -505,20 +505,7 @@ public static class SipsConnectEndpoints
             account.ClearingType,
             descriptor.Descriptor,
             account.AccountName,
-            bill.Currency,
-            bill.ExternalInvoiceId,
-            bill.UPR,
-            bill.UPR,
-            account.MdaName,
-            bill.MdaCode,
-            bill.MdaCode,
-            bill.Amount,
-            bill.Currency,
-            account.AccountNumber,
-            account.AccountName,
-            account.ClearingType,
-            true,
-            true));
+            bill.Currency));
     }
 
     private static string? ValidatePaymentContract(PaymentRequest request, string? txId)
@@ -916,20 +903,7 @@ public sealed record VerificationResponse(
     string AccountType,
     string Name,
     string Address,
-    string Currency,
-    string? InvoiceId = null,
-    string? Upr = null,
-    string? BillReference = null,
-    string? Mda = null,
-    string? MdaId = null,
-    string? MdaCode = null,
-    decimal? AmountPayable = null,
-    string? PaymentCurrency = null,
-    string? CreditorAccount = null,
-    string? CreditorName = null,
-    string? CreditorAccountType = null,
-    bool? AmountLocked = null,
-    bool? CreditorLocked = null)
+    string Currency)
 {
     public static VerificationResponse Rejected(string message) => new(false, message, "", "", "", "", "");
 }

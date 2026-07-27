@@ -29,6 +29,36 @@ public sealed class SipsConnectContractTests : IClassFixture<P2GWebApplicationFa
     }
 
     [Fact]
+    public async Task VerifyInvoice_ReturnsLegacyDescriptorInNameForSipsTransport()
+    {
+        var client = _factory.CreateClient();
+        var setup = await P2GFlowTests.CreateAuthorityAccountAndBillAsync(
+            client,
+            invoiceId: "INV-LEGACY-VERIFY",
+            upr: "SRA-TAX-2026-INV-LEGACY-VERIFY");
+
+        using var response = await P2GFlowTests.PostInternalAsync(client, "/api/v1/sips-connect/verify", new
+        {
+            accountNo = setup.Upr,
+            accountType = "BILL",
+            agent = "BANKBICXXXX",
+            verificationId = "VER-LEGACY-VERIFY"
+        });
+
+        response.EnsureSuccessStatusCode();
+        using var json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+        Assert.True(json.RootElement.GetProperty("isVerified").GetBoolean());
+        Assert.StartsWith("P2G1|SRA|TAX|INV-LEGACY-VERIFY|USD|125.00|", json.RootElement.GetProperty("name").GetString());
+        Assert.Equal("1234567890", json.RootElement.GetProperty("accountNo").GetString());
+        Assert.Equal("ACCT", json.RootElement.GetProperty("accountType").GetString());
+        Assert.Equal("Somali Revenue Authority", json.RootElement.GetProperty("address").GetString());
+        Assert.Equal("USD", json.RootElement.GetProperty("currency").GetString());
+        Assert.False(json.RootElement.TryGetProperty("creditorName", out _));
+        Assert.False(json.RootElement.TryGetProperty("billReference", out _));
+        Assert.False(json.RootElement.TryGetProperty("amountPayable", out _));
+    }
+
+    [Fact]
     public async Task PaymentConfirm_MissingMsgDefIdr_ReturnsRejectedAdapterPayload()
     {
         var client = _factory.CreateClient();

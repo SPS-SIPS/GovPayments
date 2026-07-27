@@ -37,19 +37,13 @@ public sealed class P2GFlowTests : IClassFixture<P2GWebApplicationFactory>
         Assert.True(verifyJson.RootElement.GetProperty("isVerified").GetBoolean());
         Assert.StartsWith("P2G1|SRA|TAX|INV123456|USD|125.00|", verifyJson.RootElement.GetProperty("name").GetString());
         Assert.Equal("1234567890", verifyJson.RootElement.GetProperty("accountNo").GetString());
-        Assert.Equal("INV123456", verifyJson.RootElement.GetProperty("invoiceId").GetString());
-        Assert.Equal(setup.Upr, verifyJson.RootElement.GetProperty("upr").GetString());
-        Assert.Equal(setup.Upr, verifyJson.RootElement.GetProperty("billReference").GetString());
-        Assert.Equal("Somali Revenue Authority", verifyJson.RootElement.GetProperty("mda").GetString());
-        Assert.Equal("SRA", verifyJson.RootElement.GetProperty("mdaCode").GetString());
-        Assert.Equal(125.00m, verifyJson.RootElement.GetProperty("amountPayable").GetDecimal());
+        Assert.Equal("ACCT", verifyJson.RootElement.GetProperty("accountType").GetString());
+        Assert.Equal("Somali Revenue Authority", verifyJson.RootElement.GetProperty("address").GetString());
         Assert.Equal("USD", verifyJson.RootElement.GetProperty("currency").GetString());
-        Assert.Equal("USD", verifyJson.RootElement.GetProperty("paymentCurrency").GetString());
-        Assert.Equal("1234567890", verifyJson.RootElement.GetProperty("creditorAccount").GetString());
-        Assert.Equal("Somali Revenue Authority", verifyJson.RootElement.GetProperty("creditorName").GetString());
-        Assert.Equal("ACCT", verifyJson.RootElement.GetProperty("creditorAccountType").GetString());
-        Assert.True(verifyJson.RootElement.GetProperty("amountLocked").GetBoolean());
-        Assert.True(verifyJson.RootElement.GetProperty("creditorLocked").GetBoolean());
+        Assert.False(verifyJson.RootElement.TryGetProperty("invoiceId", out _));
+        Assert.False(verifyJson.RootElement.TryGetProperty("billReference", out _));
+        Assert.False(verifyJson.RootElement.TryGetProperty("amountPayable", out _));
+        Assert.False(verifyJson.RootElement.TryGetProperty("creditorAccount", out _));
 
         using var paymentResponse = await PostInternalAsync(client, "/api/v1/sips-connect/payments/confirm", new
         {
@@ -223,7 +217,7 @@ public sealed class P2GFlowTests : IClassFixture<P2GWebApplicationFactory>
         using var verifyJson = await JsonDocument.ParseAsync(await verifyResponse.Content.ReadAsStreamAsync());
         Assert.True(verifyJson.RootElement.GetProperty("isVerified").GetBoolean());
         Assert.Equal("Invoice verified", verifyJson.RootElement.GetProperty("message").GetString());
-        Assert.Equal(setup.Upr, verifyJson.RootElement.GetProperty("billReference").GetString());
+        Assert.StartsWith("P2G1|SRA|TAX|INV-BILL-TYPE|USD|125.00|", verifyJson.RootElement.GetProperty("name").GetString());
     }
 
     [Fact]
