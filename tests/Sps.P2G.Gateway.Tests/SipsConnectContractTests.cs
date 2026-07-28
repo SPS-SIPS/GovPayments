@@ -89,7 +89,10 @@ public sealed class SipsConnectContractTests : IClassFixture<P2GWebApplicationFa
     [InlineData("C2GCRT")]
     [InlineData("C2GSQR")]
     [InlineData("C2GDQR")]
-    public async Task PaymentConfirm_AcceptsB2GCategoryPurposes(string categoryPurpose)
+    [InlineData("B2GCRT")]
+    [InlineData("B2GSQR")]
+    [InlineData("B2GDQR")]
+    public async Task PaymentConfirm_AcceptsGovernmentPaymentCategoryPurposes(string categoryPurpose)
     {
         var client = _factory.CreateClient();
 

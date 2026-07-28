@@ -515,7 +515,7 @@ public static class SipsConnectEndpoints
         if (FirstNonEmpty(request.FromBIC, request.Payer?.BankCode, request.DebtorAgentBIC) is null) return "MISSING_FROM_BIC";
         if (FirstNonEmpty(request.ToBIC, request.Payee?.BankCode, request.CreditorAgentBIC) is null) return "MISSING_TO_BIC";
         if (FirstNonEmpty(request.CategoryPurpose) is null) return "MISSING_CATEGORY_PURPOSE";
-        if (!IsB2GCategoryPurpose(request.CategoryPurpose)) return "INVALID_CATEGORY_PURPOSE";
+        if (!IsGovernmentPaymentCategoryPurpose(request.CategoryPurpose)) return "INVALID_CATEGORY_PURPOSE";
         if (GetPaymentAmount(request) <= 0) return "INVALID_AMOUNT";
         if (FirstNonEmpty(request.Currency) is null) return "MISSING_CURRENCY";
         if (FirstNonEmpty(request.CreditorAccount, request.Payee?.Account) is null) return "MISSING_CREDITOR_ACCOUNT";
@@ -527,11 +527,14 @@ public static class SipsConnectEndpoints
         return null;
     }
 
-    private static bool IsB2GCategoryPurpose(string? categoryPurpose)
+    private static bool IsGovernmentPaymentCategoryPurpose(string? categoryPurpose)
     {
         return string.Equals(categoryPurpose, "C2GCRT", StringComparison.OrdinalIgnoreCase)
             || string.Equals(categoryPurpose, "C2GSQR", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(categoryPurpose, "C2GDQR", StringComparison.OrdinalIgnoreCase);
+            || string.Equals(categoryPurpose, "C2GDQR", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(categoryPurpose, "B2GCRT", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(categoryPurpose, "B2GSQR", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(categoryPurpose, "B2GDQR", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool LooksLikeCompletionNotification(PaymentRequest request)
