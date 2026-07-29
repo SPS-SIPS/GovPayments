@@ -10,11 +10,53 @@ The gateway service pulls:
 ghcr.io/sps-sips/govpayments:${GATEWAY_IMAGE_TAG:-latest}
 ```
 
-If the GitHub package is private, authenticate the deployment host first:
+If the GitHub package is private, authenticate Docker on the deployment host
+under the same Unix account that runs Docker Compose:
 
 ```bash
-echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+./scripts/login-ghcr.sh
 ```
+
+The helper prompts for a GitHub deployment account and token, keeps the token
+out of `.env` and shell history, and verifies access to the configured image.
+
+GitHub Packages currently does not support fine-grained personal access tokens
+for registry authentication. Do not use a staff member's classic token because
+`read:packages` applies to every package that person can read. For manual
+server deployments:
+
+1. Create a dedicated GitHub deployment account with no staff privileges.
+2. In the `govpayments` package settings, give that account read access only to
+   this package. Remove inherited access if it would grant broader repository
+   or package permissions.
+3. Create a short-lived classic token for the deployment account with only
+   `read:packages`.
+4. If the organization enforces SSO, authorize that token for `sps-sips`.
+
+This confines the classic token to the packages visible to the isolated
+deployment identity.
+
+For non-interactive automation, pass credentials through the process
+environment:
+
+```bash
+GHCR_USER="<deployment-account>" GHCR_TOKEN="<classic-read-token>" ./scripts/login-ghcr.sh
+```
+
+Do not save `GHCR_TOKEN` in the production `.env` file. Docker stores the login
+in the current user's Docker configuration. Pull the image and then immediately
+remove that stored credential:
+
+```bash
+docker compose pull gateway
+docker logout ghcr.io
+```
+
+For automated deployments, prefer a self-hosted GitHub Actions runner on the
+deployment host. Grant the workflow `packages: read`, grant its repository
+GitHub Actions access to the package, authenticate with the job-scoped
+`GITHUB_TOKEN`, pull the image, and log out. This avoids a long-lived registry
+credential on the server.
 
 ## First Run
 

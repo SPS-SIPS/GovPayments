@@ -69,7 +69,9 @@ jobs:
           for script in security/openbao/scripts/*.sh; do
             bash -n "$script"
           done
-          bash -n production/scripts/generate-self-signed-cert.sh
+          for script in production/scripts/*.sh; do
+            sh -n "$script"
+          done
           bash -n production/openbao/scripts/bao-compose-bootstrap.sh
 
       - name: Upload test results
@@ -95,7 +97,7 @@ jobs:
 
       - name: Prepare image tags
         run: |
-          image_name="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/sps-p2g-gateway"
+          image_name="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/govpayments"
           echo "IMAGE_NAME=$image_name" >> "$GITHUB_ENV"
           echo "IMAGE_SHA_TAG=$image_name:${GITHUB_SHA}" >> "$GITHUB_ENV"
           echo "IMAGE_LATEST_TAG=$image_name:latest" >> "$GITHUB_ENV"
