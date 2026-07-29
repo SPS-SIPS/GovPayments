@@ -50,10 +50,11 @@ public static class ReconciliationEndpoints
             var normalizedPageSize = NormalizePageSize(pageSize);
             var query = FilterPayments(db, authority.Id, from, to, upr, externalInvoiceId, txId, status, mdaCode, serviceCode, revenueAccountId, accountNumber);
             var total = await query.CountAsync(cancellationToken);
-            var items = await ProjectPayments(query, db)
+            var pageQuery = query
                 .OrderByDescending(x => x.PaidAt)
                 .Skip((normalizedPage - 1) * normalizedPageSize)
-                .Take(normalizedPageSize)
+                .Take(normalizedPageSize);
+            var items = await ProjectPayments(pageQuery, db)
                 .ToListAsync(cancellationToken);
 
             return Results.Ok(new { page = normalizedPage, pageSize = normalizedPageSize, total, items });
@@ -82,9 +83,11 @@ public static class ReconciliationEndpoints
                 return Results.Unauthorized();
             }
 
-            var rows = await ProjectPayments(FilterPayments(db, authority.Id, from, to, upr, externalInvoiceId, txId, status, mdaCode, serviceCode, revenueAccountId, accountNumber), db)
-                .OrderByDescending(x => x.PaidAt)
-                .Take(10_000)
+            var rows = await ProjectPayments(
+                    FilterPayments(db, authority.Id, from, to, upr, externalInvoiceId, txId, status, mdaCode, serviceCode, revenueAccountId, accountNumber)
+                        .OrderByDescending(x => x.PaidAt)
+                        .Take(10_000),
+                    db)
                 .ToListAsync(cancellationToken);
 
             return Results.Text(ToPaymentCsv(rows), "text/csv; charset=utf-8");
@@ -118,10 +121,11 @@ public static class ReconciliationEndpoints
             var normalizedPageSize = NormalizePageSize(pageSize);
             var query = FilterReversals(db, authority.Id, from, to, upr, externalInvoiceId, txId, mdaCode, serviceCode, revenueAccountId, accountNumber);
             var total = await query.CountAsync(cancellationToken);
-            var items = await ProjectReversals(query, db)
+            var pageQuery = query
                 .OrderByDescending(x => x.ReversedAt)
                 .Skip((normalizedPage - 1) * normalizedPageSize)
-                .Take(normalizedPageSize)
+                .Take(normalizedPageSize);
+            var items = await ProjectReversals(pageQuery, db)
                 .ToListAsync(cancellationToken);
 
             return Results.Ok(new { page = normalizedPage, pageSize = normalizedPageSize, total, items });
@@ -149,9 +153,11 @@ public static class ReconciliationEndpoints
                 return Results.Unauthorized();
             }
 
-            var rows = await ProjectReversals(FilterReversals(db, authority.Id, from, to, upr, externalInvoiceId, txId, mdaCode, serviceCode, revenueAccountId, accountNumber), db)
-                .OrderByDescending(x => x.ReversedAt)
-                .Take(10_000)
+            var rows = await ProjectReversals(
+                    FilterReversals(db, authority.Id, from, to, upr, externalInvoiceId, txId, mdaCode, serviceCode, revenueAccountId, accountNumber)
+                        .OrderByDescending(x => x.ReversedAt)
+                        .Take(10_000),
+                    db)
                 .ToListAsync(cancellationToken);
 
             return Results.Text(ToReversalCsv(rows), "text/csv; charset=utf-8");

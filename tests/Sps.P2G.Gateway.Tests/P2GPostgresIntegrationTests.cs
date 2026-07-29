@@ -63,6 +63,18 @@ public sealed class P2GPostgresIntegrationTests : IClassFixture<PostgresP2GWebAp
         await P2GFlowTests.CompletePaymentAsync(client, "TX-PG-001", setup.Upr);
         Assert.Equal(1, db.BillPayments.Count(x => x.TxId == "TX-PG-001"));
         Assert.True(db.BillEvents.Count(x => x.BillId == setup.BillId) >= 4);
+
+        var paymentsRequest = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"/api/v1/authorities/{setup.AuthorityId}/payments?txId=TX-PG-001");
+        paymentsRequest.Headers.Add("X-Authority-Api-Key", setup.ApiKey);
+        using var paymentsResponse = await client.SendAsync(paymentsRequest);
+        paymentsResponse.EnsureSuccessStatusCode();
+        using var paymentsJson = await JsonDocument.ParseAsync(await paymentsResponse.Content.ReadAsStreamAsync());
+        Assert.Equal(1, paymentsJson.RootElement.GetProperty("total").GetInt32());
+        Assert.Equal(
+            "TX-PG-001",
+            Assert.Single(paymentsJson.RootElement.GetProperty("items").EnumerateArray()).GetProperty("txId").GetString());
     }
 
     [Fact]
