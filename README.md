@@ -186,6 +186,22 @@ POSTGRES_HOST_PORT=<postgres-port-if-exposed>
 
 SIPS Connect routing details, client identifiers, and outbound status-check settings are deployment-specific. Keep them in private deployment configuration as `P2G_KEYCLOAK_*` and `SIPS_CONNECT_*` values; the OpenBao bootstrap job loads those values into runtime secrets.
 
+## Services and Certificates
+
+Production service ports below are defaults; configure host bindings in `production/.env`.
+
+| Service / component | Purpose and access |
+| --- | --- |
+| Gateway | Payment APIs; HTTPS on port `8443` through the edge proxy (local development: HTTP on `18081`). |
+| PostgreSQL 16 | Payment data; port `5432`. |
+| OpenBao 2.0 | Runtime secrets in KV v2; HTTPS on port `9443` through the edge proxy (local development: HTTP on `8201`). |
+| Keycloak | OIDC authentication; external in production, local development on port `8080`. |
+| Nginx edge proxy | Terminates production HTTPS for the gateway and OpenBao using `production/certs/sps-p2g.crt` and `sps-p2g.key`. |
+| Certificates | OpenSSL self-signed RSA-4096 certificates, valid for `825` days by default; `cert-init` creates them when the certificate/key pair is missing. Clients must trust the certificate. |
+| New certificate | Set `HOST_IP`, `CERT_DNS_NAMES` (comma-separated DNS names), and optionally `CERT_DAYS` in `production/.env`, then run `cd production && docker compose run --rm cert-init`. |
+
+To replace an existing certificate, first move both `production/certs/sps-p2g.crt` and `production/certs/sps-p2g.key` to a secure backup location; generation skips an existing pair. Run the creation command above, then `docker compose restart edge-proxy` from `production/` and distribute the new certificate to clients that trust it. See the [production deployment guide](production/README.md#https-certificate) for details.
+
 ## Auth Headers
 
 Revenue Authority APIs currently accept API-key fallback:
